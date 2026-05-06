@@ -1,0 +1,26 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+aliases:
+  approvers:
+    - mshitrit
+    - slintes
+    - razo7
+    - beekhof
+    - clobrano
+    - ugreener
+    - mhabashrh
+    - lyfofvipin
+    - rbartal
+    - swgoswam
+
+  code-reviewers:
+    - mshitrit
+    - slintes
+    - razo7
+    - beekhof
+    - clobrano
+    - ugreener
+    - mhabashrh
+    - lyfofvipin
+    - rbartal
+    - swgoswam

@@ -18,7 +18,7 @@ ARG GO_VER=go1.26.0
 ARG GINKGO_VER=ginkgo@v2.28.1
 ARG CONTAINERUSER=testuser
 
-LABEL description="eco-gotests development image"
+LABEL description="system-tests development image"
 LABEL go.version=${GO_VER}
 LABEL ginkgo.version=${GINKGO_VER}
 LABEL container.user=${CONTAINERUSER}

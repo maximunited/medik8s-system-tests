@@ -14,9 +14,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// CloneRepo clones the eco-gotests repo from the given repo and branch and returns the path to the cloned repo.
+// CloneRepo clones the system-tests repo from the given repo and branch and returns the path to the cloned repo.
 func CloneRepo(ctx context.Context, localPath, repo, branch string) (string, error) {
-	clonedPath := path.Join(localPath, "eco-gotests")
+	clonedPath := path.Join(localPath, "system-tests")
 
 	klog.V(100).Infof("Cloning repo %s with branch %s to %s", repo, branch, clonedPath)
 
@@ -25,7 +25,7 @@ func CloneRepo(ctx context.Context, localPath, repo, branch string) (string, err
 		return "", err
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "clone", "-b", branch, repo, "eco-gotests")
+	cmd := exec.CommandContext(ctx, "git", "clone", "-b", branch, repo, "system-tests")
 	cmd.Dir = localPath
 
 	err = execCommand(cmd)
@@ -36,9 +36,9 @@ func CloneRepo(ctx context.Context, localPath, repo, branch string) (string, err
 	return clonedPath, nil
 }
 
-// DryRun runs the eco-gotests tests in dry-run mode and returns the path to the JSON report file.
+// DryRun runs the system-tests tests in dry-run mode and returns the path to the JSON report file.
 func DryRun(ctx context.Context, clonedPath string) (string, error) {
-	klog.V(100).Infof("Running eco-gotests dry-run in %s", clonedPath)
+	klog.V(100).Infof("Running system-tests dry-run in %s", clonedPath)
 
 	cmd := exec.CommandContext(ctx, "ginkgo", "--json-report=report.json", "-dry-run", "-v", "-r", "./tests")
 	cmd.Dir = clonedPath

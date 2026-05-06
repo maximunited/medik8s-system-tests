@@ -16,7 +16,7 @@ jobs:
       ECO_GOINFRA_REPO: rh-ecosystem-edge/eco-goinfra
 
     steps:
-      - name: Check out the eco-gotests code
+      - name: Check out the system-tests code
         if: ${{ !contains(github.event.*.labels.*.name, 'ignore-dep-check') }}
         uses: actions/checkout@v6
       
@@ -35,8 +35,8 @@ jobs:
           ref:  ${{ github.base_ref }}
           path: ${{ env.ECO_GOINFRA_PATH }}
 
-      # Update the go.mod file in eco-gotests to include the current eco-goinfra code
-      - name: Update go.mod in eco-gotests
+      # Update the go.mod file in system-tests to include the current eco-goinfra code
+      - name: Update go.mod in system-tests
         if: ${{ !contains(github.event.*.labels.*.name, 'ignore-dep-check') }}
         run: |
           go mod edit -replace github.com/rh-ecosystem-edge/eco-goinfra=${{ github.workspace }}/${{ env.ECO_GOINFRA_PATH }}

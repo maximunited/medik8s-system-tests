@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    if: github.repository_owner == 'rh-ecosystem-edge'
+    if: github.repository_owner == 'medik8s'
     runs-on: ubuntu-latest
     env:
       SHELL: /bin/bash
@@ -55,7 +55,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: report-cache
-          path: ${{ env.XDG_CACHE_HOME }}/eco-gotests
+          path: ${{ env.XDG_CACHE_HOME }}/system-tests
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ steps.get-last-run.outputs.last-run }}
 
@@ -75,11 +75,11 @@ jobs:
         with:
           name: report-cache
           overwrite: true
-          path: ${{ env.XDG_CACHE_HOME }}/eco-gotests
+          path: ${{ env.XDG_CACHE_HOME }}/system-tests
 
   deploy:
     needs: build
-    if: github.repository_owner == 'rh-ecosystem-edge'
+    if: github.repository_owner == 'medik8s'
 
     permissions:
       pages: write

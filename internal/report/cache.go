@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	cacheDir = "eco-gotests"
+	cacheDir = "system-tests"
 )
 
 var (
@@ -61,7 +61,7 @@ func NewCacheContext(ctx context.Context) (*Cache, error) {
 	return cache, nil
 }
 
-// CleanCache cleans the existing cache on disk by removing the entire eco-gotests cache directory.
+// CleanCache cleans the existing cache on disk by removing the entire system-tests cache directory.
 func CleanCache() error {
 	cache := &Cache{ctx: context.TODO()}
 
@@ -242,7 +242,7 @@ func (cache *Cache) GetOrCreate(repoPath string) (*SuiteTree, error) {
 
 	reportPath, err := DryRun(cache.ctx, repoPath)
 	if err != nil {
-		klog.V(100).Infof("Failed to run eco-gotests dry-run: %v", err)
+		klog.V(100).Infof("Failed to run system-tests dry-run: %v", err)
 
 		return nil, err
 	}
