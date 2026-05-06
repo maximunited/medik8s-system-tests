@@ -1,6 +1,0 @@
----
-# System Tests disk encryption default configurations.
-BMCUsername: ""
-BMCPassword: ""
-BMCHosts: []
-BMCTimeout: "15s"
