@@ -16,7 +16,7 @@ See [SKILLS.md](.agents/SKILLS.md) for the full behavioral guidelines that apply
 
 ## Project Overview
 
-**system-tests** (`github.com/medik8s/system-tests`) — E2E tests for [medik8s](https://www.medik8s.io/) operators: FAR (Fence Agents Remediation), MDR (Machine Deletion Remediation), NHC (Node Health Check), NMO (Node Maintenance Operator), and SNR (Self Node Remediation). Forked from [eco-gotests](https://github.com/rh-ecosystem-edge/eco-gotests). Uses Ginkgo v2 and requires a live OCP ≥4.13 cluster via `KUBECONFIG`.
+**system-tests** (`github.com/medik8s/system-tests`) — E2E tests for all [medik8s](https://www.medik8s.io/) operators: FAR (Fence Agents Remediation), MDR (Machine Deletion Remediation), NHC (Node Health Check), NMO (Node Maintenance Operator), SNR (Self Node Remediation), SBR (Storage Based Remediation), and CUR (Customized User Remediation). Forked from [eco-gotests](https://github.com/rh-ecosystem-edge/eco-gotests). Uses Ginkgo v2 and requires a live OCP ≥4.13 cluster via `KUBECONFIG`.
 
 ## Commands
 
@@ -104,7 +104,7 @@ All `It`/`DescribeTable` specs should be labelled using constants from `tests/in
 
 | Axis | Examples |
 |---|---|
-| Operator | `operator:far`, `operator:nhc`, `operator:snr`, `operator:mdr`, `operator:nmo` |
+| Operator | `operator:far`, `operator:nhc`, `operator:snr`, `operator:mdr`, `operator:nmo`, `operator:sbr`, `operator:cur` |
 | Tier | `tier:smoke`, `tier:acceptance`, `tier:resiliency`, `tier:upgrade`, `tier:interop` |
 | Frequency | `frequency:presubmit`, `frequency:nightly`, `frequency:weekly`, `frequency:release` |
 | Disruption | `disruption:destructive`, `disruption:nondestructive` |
