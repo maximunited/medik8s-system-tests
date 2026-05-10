@@ -54,56 +54,18 @@ linters:
             - github.com/onsi/ginkgo/v2/types
             - k8s.io/apimachinery
             - k8s.io/api
-            - k8s.io/kubelet
             - k8s.io/utils
             - k8s.io/client-go
             - k8s.io/klog/v2
             - github.com/go-logr/logr
             - github.com/kelseyhightower
-            - github.com/Juniper/go-netconf
             - github.com/openshift
-            - github.com/nmstate/kubernetes-nmstate
-            - github.com/hashicorp/go-version
-            - github.com/Masterminds/semver/v3
-            - github.com/cavaliergopher/grab/v3
-            - github.com/k8snetworkplumbingwg
-            - github.com/metallb/metallb-operator
-            - github.com/metal3-io/baremetal-operator
-            - github.com/operator-framework/operator-lifecycle-manager
-            - github.com/grafana-operator/grafana-operator
-            - github.com/NVIDIA/gpu-operator
-            - github.com/operator-framework/api
-            - github.com/vmware-tanzu/velero/pkg/apis/velero/v1
-            - github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned/scheme
-            - github.com/povsister/scp
-            - maistra.io/api
-            - open-cluster-management.io/governance-policy-propagator/api
-            - open-cluster-management.io/config-policy-controller/api
-            - open-cluster-management.io/multicloud-operators-subscription/pkg/apis
             - sigs.k8s.io/controller-runtime
             - $gostd
             - github.com/stretchr/testify
-            - github.com/stmcginnis/gofish
-            - github.com/BurntSushi/toml
-            - github.com/containers/image/v5/pkg/sysregistriesv2
             - gopkg.in/yaml.v2
-            - gopkg.in/yaml.v3
-            - gopkg.in/k8snetworkplumbingwg/multus-cni.v4/pkg/types
-            - golang.org/x/crypto/ssh
-            - github.com/klauspost/compress/zstd
-            - github.com/vmware-tanzu/velero/pkg/util
             - github.com/rh-ecosystem-edge/eco-goinfra
-            - github.com/rh-ecosystem-edge/eco-gotests
-            - github.com/prometheus/client_golang
-            - github.com/prometheus/common
-            - github.com/prometheus/alertmanager
-            - github.com/go-openapi/runtime
-            - github.com/go-openapi/strfmt
-            - golang.org/x/oauth2
-            - github.com/google/uuid
-            - golang.org/x/exp/constraints
-            - github.com/redhat-cne/sdk-go
-            - github.com/prometheus-operator/prometheus-operator
+            - github.com/medik8s/system-tests
           deny:
             - pkg: github.com/onsi**
     funlen:
@@ -136,28 +98,8 @@ linters:
       dot-import-whitelist:
         - github.com/onsi/gomega
         - github.com/onsi/ginkgo/v2
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/internal/inittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/cnf/core/network/internal/netinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/cnf/ran/internal/raninittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/cnf/ran-deployment/internal/raninittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/assisted/ztp/internal/ztpinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/ipsec/internal/ipsecinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/ran-du/internal/randuinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/internal/systemtestsinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/spk/internal/spkinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/vcore/internal/vcoreinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/lca/imagebasedupgrade/cnf/internal/cnfinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/hw-accel/kmm/internal/kmminittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/rhwa/internal/rhwainittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/rdscore/internal/rdscoreinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/lca/imagebasedupgrade/mgmt/internal/mgmtinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/accel/internal/accelinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/lca/imagebasedinstall/mgmt/internal/mgmtinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/diskencryption/internal/diskencryptioninittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/o-cloud/internal/ocloudinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/system-tests/o-cloud/internal/ocloudcommon
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/ocp/sriov/internal/ocpsriovinittools
-        - github.com/rh-ecosystem-edge/eco-gotests/tests/lca/seedgeneration/internal/seedgenerationinittools
+        - github.com/medik8s/system-tests/tests/internal/inittools
+        - github.com/medik8s/system-tests/tests/internal/medik8sinittools
     wsl:
       strict-append: false
   exclusions:
@@ -172,61 +114,7 @@ linters:
         path: tests/internal/inittools
       - linters:
           - gochecknoinits
-        path: tests/accel/internal/accelinittools
-      - linters:
-          - gochecknoinits
-        path: tests/cnf/core/network/internal/netinittools
-      - linters:
-          - gochecknoinits
-        path: tests/cnf/ran/internal/raninittools
-      - linters:
-          - gochecknoinits
-        path: 'tests/cnf/ran-deployment/internal/raninittools'
-      - linters:
-          - gochecknoinits
-        path: tests/assisted/ztp/internal/ztpinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/ipsec/internal/ipsecinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/ran-du/internal/randuinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/rdscore/internal/rdscoreinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/internal/systemtestsinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/spk/internal/spkinittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/vcore/internal/vcoreinittools
-      - linters:
-          - gochecknoinits
-        path: tests/lca/imagebasedupgrade/cnf/internal/cnfinittools
-      - linters:
-          - gochecknoinits
-        path: tests/ocp/sriov/internal/ocpsriovinittools
-      - linters:
-          - gochecknoinits
-        path: tests/hw-accel/kmm/internal/kmminittools
-      - linters:
-          - gochecknoinits
-        path: tests/rhwa/internal/rhwainittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/diskencryption/internal/diskencryptioninittools
-      - linters:
-          - gochecknoinits
-        path: tests/system-tests/o-cloud/internal/ocloudinittools
-      - linters:
-          - gochecknoinits
-        path: tests/lca/imagebasedupgrade/mgmt/internal/mgmtinittools
-      - linters:
-          - gochecknoinits
-        path: tests/lca/imagebasedinstall/mgmt/internal/mgmtinittools
+        path: tests/internal/medik8sinittools
       - linters:
           - gochecknoinits
         path: tests/internal/reporter
@@ -238,28 +126,10 @@ linters:
         path: tests/internal/reporter
       - linters:
           - depguard
-        path: tests/system-tests/internal/ocpcli
-      - linters:
-          - depguard
         path: tests/.*/tests/.*
       - linters:
           - depguard
         path: tests/.*/.*suite_test.go
-      - linters:
-          - depguard
-        path: tests/system-tests/rdscore/internal/.*
-      - linters:
-          - depguard
-        path: tests/system-tests/spk/internal/.*
-      - linters:
-          - depguard
-        path: tests/system-tests/o-cloud/internal/.*
-      - linters:
-          - depguard
-        path: tests/system-tests/vcore/internal/.*
-      - linters:
-          - depguard
-        path: tests/lca/imagebasedupgrade/cnf/internal/validations
       - path: (.+)\.go$
         text: "can't run linter goanalysis_metalinter: inspect: failed to load"
     paths:

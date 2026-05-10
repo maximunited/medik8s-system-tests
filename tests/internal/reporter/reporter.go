@@ -11,7 +11,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2/types"
 	"github.com/openshift-kni/k8sreporter"
-	"github.com/rh-ecosystem-edge/eco-gotests/tests/internal/config"
+	"github.com/medik8s/system-tests/tests/internal/config"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 )

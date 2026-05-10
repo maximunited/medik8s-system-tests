@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/clients"
-	"github.com/rh-ecosystem-edge/eco-gotests/tests/internal/config"
+	"github.com/medik8s/system-tests/tests/internal/config"
 	"k8s.io/klog/v2"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )

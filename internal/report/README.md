@@ -2,7 +2,7 @@
 
 Generate HTML reports for the tree of Ginkgo specs. [Available on GitHub pages.]
 
-[Available on GitHub pages.]: https://rh-ecosystem-edge.github.io/eco-gotests/report
+[Available on GitHub pages.]: https://medik8s.github.io/system-tests/report
 
 ## Usage
 

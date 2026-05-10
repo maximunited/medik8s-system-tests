@@ -1,34 +1,24 @@
-Ecosystem QE Golang Test Automation
+medik8s System Tests
 =======
-# Eco-gotests
+# system-tests
 
 ## Overview
-The [eco-gotests](https://github.com/openshift-kni/eco-gotests) is the downstream OCP telco/Ecosystem QE framework.
-The project is based on golang+[ginkgo](https://onsi.github.io/ginkgo) framework.
+The [system-tests](https://github.com/medik8s/system-tests) repository contains E2E tests for [medik8s](https://www.medik8s.io/) operators: FAR, MDR, NHC, NMO, and SNR.
+The project is based on golang+[ginkgo](https://onsi.github.io/ginkgo) framework. It was forked from [eco-gotests](https://github.com/rh-ecosystem-edge/eco-gotests).
 
 ### Project requirements
-* golang v1.24.x
+* golang v1.26.x
 * ginkgo v2.x
 
-## eco-gotests
-The  [eco-gotests](https://github.com/openshift-kni/eco-gotests) is designed to test a pre-installed OCP cluster which meets the following requirements:
+## Prerequisites
+The test framework is designed to test a pre-installed OCP cluster which meets the following requirements:
 
 ### Mandatory setup requirements:
 * OCP cluster installed with version >=4.13
 
-#### Optional:
-* PTP operator
-* SR-IOV operator
-* SR-IOV-fec operator
-* RAN DU profile
-
 ### Supported setups:
 * Regular cluster 3 master nodes (VMs or BMs) 2 workers (VMs or BMs)
 * Single Node Cluster (VM or BM)
-* Public cloud (AWS)
-
-**WARNING!**: Some test suites of the [eco-gotests](https://github.com/openshift-kni/eco-gotests) framework remove existing configuration such as
-PtpConfig, SR-IOV, SriovFecClusterConfig configs .
 
 ### General environment variables
 #### Mandatory:
@@ -42,7 +32,7 @@ We use glog library for logging in the project. In order to enable verbose loggi
 
 <sup>
     import (
-      . "github.com/openshift-kni/eco-gotests/tests/internal/inittools"
+      . "github.com/medik8s/system-tests/tests/internal/inittools"
     )
 </sup>
 
@@ -53,7 +43,7 @@ We use glog library for logging in the project. In order to enable verbose loggi
 
   1. The value for the variable has to be >= 100.
   2. The variable can simply be exported in the shell where you run your automation.
-  3. The go file you work on has to be in a directory under github.com/openshift-kni/eco-gotests/tests/ directory for being able to import inittools.
+  3. The go file you work on has to be in a directory under the `tests/` directory for being able to import inittools.
   4. Importing inittool also initializes the apiclient and it's available via "APIClient" variable.
 
 * Collect logs from cluster with reporter
@@ -93,67 +83,45 @@ It is recommended to execute the runner script through the `make run-tests` make
 Example:
 ```
 $ export KUBECONFIG=/path/to/kubeconfig
-$ export ECO_TEST_FEATURES="ztp kmm" 
-$ export ECO_TEST_LABELS='platform-selection || image-service-statefulset'
+$ export ECO_TEST_FEATURES="far-operator"
+$ export ECO_TEST_LABELS='far'
 $ make run-tests                    
-Executing eco-gotests test-runner script
+Executing test-runner script
 scripts/test-runner.sh
-ginkgo -timeout=24h --keep-going --require-suite -r --label-filter="platform-selection || image-service-statefulset" ./tests/assisted/ztp ./tests/hw-accel/kmm
+ginkgo -timeout=24h --keep-going --require-suite -r --label-filter="far" ./tests/far-operator
 ```
-# eco-gotests - How to contribute
+# How to contribute
 
 The project uses a development method - forking workflow
 ### The following is a step-by-step example of forking workflow:
-1) A developer [forks](https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html#creating-a-fork)
-   the [eco-gotests](https://github.com/openshift-kni/eco-gotests) project
+1) A developer [forks](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo)
+   the [system-tests](https://github.com/medik8s/system-tests) project
 2) A new local feature branch is created
 3) A developer makes changes on the new branch.
 4) New commits are created for the changes.
 5) The branch gets pushed to developer's own server-side copy.
 6) Changes are tested.
 7) A developer opens a pull request(`PR`) from the new branch to
-   the [eco-gotests](https://github.com/openshift-kni/eco-gotests).
+   the [system-tests](https://github.com/medik8s/system-tests).
 8) The pull request gets approved from at least 2 reviewers for merge and is merged into
-   the [eco-gotests](https://github.com/openshift-kni/eco-gotests) .
+   the [system-tests](https://github.com/medik8s/system-tests).
 
-# Team Documentation
-| Name             | README                                     |
-|------------------|--------------------------------------------|
-| Assisted ZTP     | [README](tests/assisted/ztp/README.md)     |
-| CNF Core Network | [README](tests/cnf/core/network/README.md) |
-| HW Accelerators  | [README](tests/hw-accel/README.md)         |
-| CNF vRAN         | [README](tests/cnf/ran/README.md)          |
-
-# eco-tests - Project structure
+# Project structure
     .
-    ├── config                             # config files
-    ├── images                             # container images artifacts: Dockerfile ?
+    ├── images                             # container images artifacts
     ├── scripts                            # makefile scripts
     ├── tests                              # test cases directory
     │   ├── internal                       # common packages used across framework
-    │   │   ├── params                     # common constant and parameters used across framework
-    │   │   └── config                     # common config struct used across framework
-    │   ├── cnf                            # cnf group test folder
-    │   │   ├── network                    # networking test suites directory
-    │   │   │   ├── cni                    # cni test suite directory 
-    │   │   │   │   ├── internal           # internal packages used within cni test suite
-    │   │   │   │   │    └── tsparams      # cni test suite constants and parameters package
-    │   │   │   │   └── tests              # cni tests directory
-    │   │   │   │        ├── common.go     # ginkgo common cni test functions
-    │   │   │   │        ├── sysctl        # sysctl test cases
-    │   │   │   │        │   ├──api.go     # api test cases
-    │   │   │   │        │   ├──common.go  # common sysctl ginkgo function
-    │   │   │   │        │   └──e2e.go     # e2e sysctl test cases
-    │   │   │   │        └── vrf           # vrf test cases
-    │   │   │   ├── dummy                  # dummy test suite directory 
-    │   │   │   └── internal               # networking internal packages 
-    │   │   │       └── netparam           # networking constants and parameters
-    │   │   ├── internal                   # cnf internal packages 
-    │   │   │   └── cnfparams              # cnf constants and parameters
-    │   │   └── compute                    # compute test suites folder
-    │   ├── external                       # external test cases from partners
-    │   └── system                         # system group test folder
-    └── vendors                            # Dependencies folder 
+    │   │   ├── config                     # common config struct
+    │   │   ├── medik8sconfig              # medik8s-specific configuration
+    │   │   ├── medik8sinittools           # medik8s test initialization
+    │   │   └── medik8sparams              # medik8s shared constants
+    │   ├── far-operator                   # Fence Agents Remediation tests
+    │   ├── mdr-operator                   # Machine Deletion Remediation tests
+    │   ├── nhc-operator                   # Node Health Check tests
+    │   ├── nmo-operator                   # Node Maintenance Operator tests
+    │   └── snr-operator                   # Self Node Remediation tests
+    └── vendor                             # Dependencies folder
 ### Code conventions
 #### Lint
 Push requested are tested in a pipeline with golangci-lint. It is advised to add [Golangci-lint integration](https://golangci-lint.run/usage/integrations/) to your development editor. It's recommended to run `make lint` before uploading a PR.
@@ -214,7 +182,7 @@ func Function(
 
 
 ### Update eco-goinfra modules - How to:
-1. In the left pane locate the "Eco-GoInfra Module Bump" action here: https://github.com/rh-ecosystem-edge/eco-gotests/actions
+1. In the left pane locate the "Eco-GoInfra Module Bump" action here: https://github.com/medik8s/system-tests/actions
 2. Click on "Run workflow" in the right pane and run the workflow against the main branch (should take a few minutes to complete)
 3. Click on the last executed workflow, then click on the "Label created PR" job and expand the "Label PR based on CI result" step
 4. Copy the link to the created pull request and paste it in your browser.

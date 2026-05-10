@@ -1,13 +1,8 @@
-approvers:
-- achuzhoy
-- sebrandon1
-- cdvultur
-- klaskosk
-- trewest
-options: {}
-reviewers:
-- achuzhoy
-- sebrandon1
-- cdvultur
-- klaskosk
-- trewest
+# See the OWNERS docs at https://go.k8s.io/owners
+
+filters:
+  ".*":
+    reviewers:
+      - code-reviewers
+    approvers:
+      - approvers

@@ -86,12 +86,12 @@ func executeTemplateAndSave(tmpl *template.Template, config any, outputFileName 
 	return nil
 }
 
-// cleanPath cleans the provided path of anything preceding the eco-gotests directory. This is useful to template paths
+// cleanPath cleans the provided path of anything preceding the system-tests directory. This is useful to template paths
 // to be relative to the repo root rather than / on the machine that generated the report.
 func cleanPath(path string) string {
 	pathElements := strings.Split(path, string(os.PathSeparator))
 	for i, element := range pathElements {
-		if element == "eco-gotests" {
+		if element == "system-tests" {
 			return filepath.Join(pathElements[i:]...)
 		}
 	}

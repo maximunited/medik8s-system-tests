@@ -13,7 +13,7 @@ permissions:
 jobs:
   main:
     name: Eco-goinfra module bump
-    if: github.repository_owner == 'rh-ecosystem-edge'
+    if: github.repository_owner == 'medik8s'
 
     permissions:
       contents: write  # for peter-evans/create-pull-request to create branch
