@@ -26,3 +26,18 @@ reports
 
 .claude/
 CLAUDE.local.md
+.npm-cache/
+
+# macOS
+.DS_Store
+
+# Go
+go.work
+go.work.sum
+bin/
+coverage.html
+
+# Prow / OpenShift CI
+kubeconfig
+*.kubeconfig
+_output/
