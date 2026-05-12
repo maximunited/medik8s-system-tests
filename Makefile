@@ -1,4 +1,9 @@
 
+# CI uses a non-writable home dir, make sure .cache is writable
+ifeq ("${HOME}", "/")
+HOME=/tmp
+endif
+
 BASE_IMG ?= system-tests
 BASE_TAG ?= latest
 
