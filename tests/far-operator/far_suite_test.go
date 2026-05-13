@@ -4,13 +4,13 @@ import (
 	"runtime"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
-	"github.com/medik8s/system-tests/tests/internal/reporter"
 	"github.com/medik8s/system-tests/tests/far-operator/internal/farparams"
 	_ "github.com/medik8s/system-tests/tests/far-operator/tests"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
+	"github.com/medik8s/system-tests/tests/internal/reporter"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
 )
 
 var _, currentFile, _, _ = runtime.Caller(0)

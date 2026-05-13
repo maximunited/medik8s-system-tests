@@ -1,9 +1,9 @@
 package medik8sinittools
 
 import (
-	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/clients"
 	"github.com/medik8s/system-tests/tests/internal/inittools"
 	"github.com/medik8s/system-tests/tests/internal/medik8sconfig"
+	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/clients"
 )
 
 var (
