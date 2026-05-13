@@ -66,6 +66,7 @@ linters:
             - gopkg.in/yaml.v2
             - github.com/rh-ecosystem-edge/eco-goinfra
             - github.com/medik8s/system-tests
+            - github.com/klauspost/compress
           deny:
             - pkg: github.com/onsi**
     funlen:
