@@ -1,42 +1,63 @@
 package labels
 
 const (
-	// Operator axis — which operator(s) are tested.
-	OperatorSBR     = "operator:sbr"
-	OperatorSNR     = "operator:snr"
-	OperatorNHC     = "operator:nhc"
-	OperatorFAR     = "operator:far"
-	OperatorMDR     = "operator:mdr"
-	OperatorNMO     = "operator:nmo"
+	// OperatorSBR marks tests for the SBR operator.
+	OperatorSBR = "operator:sbr"
+	// OperatorSNR marks tests for the Self Node Remediation operator.
+	OperatorSNR = "operator:snr"
+	// OperatorNHC marks tests for the Node Health Check operator.
+	OperatorNHC = "operator:nhc"
+	// OperatorFAR marks tests for the Fence Agents Remediation operator.
+	OperatorFAR = "operator:far"
+	// OperatorMDR marks tests for the Machine Deletion Remediation operator.
+	OperatorMDR = "operator:mdr"
+	// OperatorNMO marks tests for the Node Maintenance Operator.
+	OperatorNMO = "operator:nmo"
+	// OperatorInterop marks cross-operator interoperability tests.
 	OperatorInterop = "operator:interop"
 
-	// Tier axis — test importance / depth.
-	TierSmoke      = "tier:smoke"
+	// TierSmoke marks smoke-level tests.
+	TierSmoke = "tier:smoke"
+	// TierAcceptance marks acceptance-level tests.
 	TierAcceptance = "tier:acceptance"
-	TierInterop    = "tier:interop"
-	TierUpgrade    = "tier:upgrade"
+	// TierInterop marks interoperability tests.
+	TierInterop = "tier:interop"
+	// TierUpgrade marks upgrade tests.
+	TierUpgrade = "tier:upgrade"
+	// TierResiliency marks resiliency tests.
 	TierResiliency = "tier:resiliency"
 
-	// Frequency axis — when the test should run.
+	// FrequencyPresubmit marks tests that run in presubmit jobs.
 	FrequencyPresubmit = "frequency:presubmit"
-	FrequencyNightly   = "frequency:nightly"
-	FrequencyWeekly    = "frequency:weekly"
-	FrequencyRelease   = "frequency:release"
+	// FrequencyNightly marks tests that run nightly.
+	FrequencyNightly = "frequency:nightly"
+	// FrequencyWeekly marks tests that run weekly.
+	FrequencyWeekly = "frequency:weekly"
+	// FrequencyRelease marks tests that run for releases.
+	FrequencyRelease = "frequency:release"
 
-	// Disruption axis — whether the test reboots/drains nodes.
-	DisruptionDestructive    = "disruption:destructive"
+	// DisruptionDestructive marks tests that reboot or drain nodes.
+	DisruptionDestructive = "disruption:destructive"
+	// DisruptionNonDestructive marks tests that do not disrupt nodes.
 	DisruptionNonDestructive = "disruption:nondestructive"
 
-	// Component axis — what part of the system is under test.
-	ComponentOLM         = "component:olm"
-	ComponentController  = "component:controller"
-	ComponentDaemonSet   = "component:daemonset"
-	ComponentWebhook     = "component:webhook"
+	// ComponentOLM marks tests for the OLM component.
+	ComponentOLM = "component:olm"
+	// ComponentController marks tests for the controller component.
+	ComponentController = "component:controller"
+	// ComponentDaemonSet marks tests for the DaemonSet component.
+	ComponentDaemonSet = "component:daemonset"
+	// ComponentWebhook marks tests for the webhook component.
+	ComponentWebhook = "component:webhook"
+	// ComponentRemediation marks tests for the remediation component.
 	ComponentRemediation = "component:remediation"
-	ComponentMetrics     = "component:metrics"
+	// ComponentMetrics marks tests for the metrics component.
+	ComponentMetrics = "component:metrics"
 
-	// Platform axis — infrastructure requirements.
-	PlatformAWS       = "platform:aws"
+	// PlatformAWS marks tests that require AWS infrastructure.
+	PlatformAWS = "platform:aws"
+	// PlatformBareMetal marks tests that require bare-metal infrastructure.
 	PlatformBareMetal = "platform:baremetal"
-	PlatformAny       = "platform:any"
+	// PlatformAny marks tests that run on any platform.
+	PlatformAny = "platform:any"
 )

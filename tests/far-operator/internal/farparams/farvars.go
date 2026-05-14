@@ -1,8 +1,8 @@
 package farparams
 
 import (
-	"github.com/openshift-kni/k8sreporter"
 	"github.com/medik8s/system-tests/tests/internal/medik8sparams"
+	"github.com/openshift-kni/k8sreporter"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -19,7 +19,7 @@ var (
 	// ReporterNamespacesToDump tells to the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{
 		medik8sparams.OperatorNs: medik8sparams.OperatorNs,
-		"openshift-machine-api":   "openshift-machine-api",
+		"openshift-machine-api":  "openshift-machine-api",
 	}
 
 	// ReporterCRDsToDump tells to the reporter what CRs to dump.
