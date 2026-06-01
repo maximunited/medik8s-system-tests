@@ -44,7 +44,7 @@ var _ = Describe(
 		})
 
 		It("Verify Storage-Based Remediation Operator pod is running",
-			reportxml.ID("TBD"), func() {
+			reportxml.ID("89232"), func() {
 				listOptions := metav1.ListOptions{
 					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
 						sbrparams.OperatorControllerPodLabel),
@@ -84,7 +84,7 @@ var _ = Describe(
 			})
 
 		It("Verify SBR CSV has required annotations",
-			reportxml.ID("TBD"), func() {
+			reportxml.ID("89233"), func() {
 				By("Getting SBR ClusterServiceVersion")
 
 				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
@@ -122,7 +122,7 @@ var _ = Describe(
 			})
 
 		It("Verify SBR controller manager has correct number of replicas",
-			reportxml.ID("TBD"), func() {
+			reportxml.ID("89234"), func() {
 				By("Checking cluster topology")
 
 				infraConfig, err := infrastructure.Pull(APIClient)
@@ -176,7 +176,7 @@ var _ = Describe(
 			})
 
 		It("Verify SBR container runs as non-root user",
-			reportxml.ID("TBD"), func() {
+			reportxml.ID("89235"), func() {
 				By("Getting SBR controller pod names")
 
 				listOptions := metav1.ListOptions{

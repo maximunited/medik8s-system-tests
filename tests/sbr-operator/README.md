@@ -17,7 +17,7 @@ ginkgo --label-filter="sbr" ./tests/sbr-operator/...
 
 ## Tests
 
-### 1. Verify SBR Operator Pod is Running (Polarion TBD)
+### 1. Verify SBR Operator Pod is Running (Polarion 89232)
 
 Validates that SBR controller-manager pods are in Running state and the
 pod count matches the cluster topology (2 on multi-node, 1 on SNO).
@@ -29,7 +29,7 @@ pod count matches the cluster topology (2 on multi-node, 1 on SNO).
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="pod is running" ./tests/sbr-operator/...`
 - **Pass criteria**: All pods Running, count matches expected replicas
 
-### 2. Verify SBR CSV Has Required Annotations (Polarion TBD)
+### 2. Verify SBR CSV Has Required Annotations (Polarion 89233)
 
 Validates that the active SBR ClusterServiceVersion (in Succeeded phase)
 has all required OLM feature annotations: disconnected support, FIPS
@@ -42,7 +42,7 @@ compliance flag, suggested namespace, and feature flags.
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="required annotations" ./tests/sbr-operator/...`
 - **Pass criteria**: Required annotations present with expected values
 
-### 3. Verify SBR Controller Replicas and Node Distribution (Polarion TBD)
+### 3. Verify SBR Controller Replicas and Node Distribution (Polarion 89234)
 
 Validates that 2 replicas are running and scheduled on different nodes
 for high availability. Skipped on SNO clusters where only 1 replica is
@@ -55,7 +55,7 @@ expected.
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="correct number of replicas" ./tests/sbr-operator/...`
 - **Pass criteria**: 2 ready replicas on 2 different nodes
 
-### 4. Verify SBR Container Security Context (Polarion TBD)
+### 4. Verify SBR Container Security Context (Polarion 89235)
 
 Validates the manager container follows the restricted security posture:
 runAsNonRoot at pod level, allowPrivilegeEscalation=false,
