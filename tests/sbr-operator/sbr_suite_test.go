@@ -4,10 +4,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
-	_ "github.com/medik8s/system-tests/tests/sbr-operator/tests"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
 	"github.com/medik8s/system-tests/tests/internal/reporter"
+	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
+	_ "github.com/medik8s/system-tests/tests/sbr-operator/tests"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
