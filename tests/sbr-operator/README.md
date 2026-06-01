@@ -22,7 +22,7 @@ ginkgo --label-filter="sbr" ./tests/sbr-operator/...
 Validates that SBR controller-manager pods are in Running state and the
 pod count matches the cluster topology (2 on multi-node, 1 on SNO).
 
-- **Operators**: SBR (any version)
+- **Operators**: SBR v0.3.0
 - **Cluster**: Any topology (MNO or SNO)
 - **Storage**: None
 - **Environment**: Connected or disconnected
@@ -35,7 +35,7 @@ Validates that the active SBR ClusterServiceVersion (in Succeeded phase)
 has all required OLM feature annotations: disconnected support, FIPS
 compliance flag, suggested namespace, and feature flags.
 
-- **Operators**: SBR (any version)
+- **Operators**: SBR v0.3.0
 - **Cluster**: Any topology
 - **Storage**: None
 - **Environment**: Connected or disconnected
@@ -48,7 +48,7 @@ Validates that 2 replicas are running and scheduled on different nodes
 for high availability. Skipped on SNO clusters where only 1 replica is
 expected.
 
-- **Operators**: SBR (any version)
+- **Operators**: SBR v0.3.0
 - **Cluster**: Multi-node only (skips on SNO)
 - **Storage**: None
 - **Environment**: Connected or disconnected
@@ -62,7 +62,7 @@ runAsNonRoot at pod level, allowPrivilegeEscalation=false,
 capabilities.drop=ALL, and seccompProfile=RuntimeDefault (at container
 or pod level). Only checks the `manager` container, not sidecars.
 
-- **Operators**: SBR (any version)
+- **Operators**: SBR v0.3.0
 - **Cluster**: Any topology
 - **Storage**: None
 - **Environment**: Connected or disconnected
