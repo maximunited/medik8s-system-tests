@@ -12,7 +12,7 @@ deployment, security posture, and high-availability configuration.
 ## Running
 
 ```bash
-ginkgo --label-filter="sbr" ./tests/storage-based-remediation-operator/...
+ginkgo --label-filter="sbr" ./tests/sbr-operator/...
 ```
 
 ## Tests
@@ -26,7 +26,7 @@ pod count matches the cluster topology (2 on multi-node, 1 on SNO).
 - **Cluster**: Any topology (MNO or SNO)
 - **Storage**: None
 - **Environment**: Connected or disconnected
-- **Standalone**: `ginkgo --label-filter="sbr" --focus="pod is running" ./tests/storage-based-remediation-operator/...`
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="pod is running" ./tests/sbr-operator/...`
 - **Pass criteria**: All pods Running, count matches expected replicas
 
 ### 2. Verify SBR CSV Has Required Annotations (Polarion TBD)
@@ -39,7 +39,7 @@ compliance flag, suggested namespace, and feature flags.
 - **Cluster**: Any topology
 - **Storage**: None
 - **Environment**: Connected or disconnected
-- **Standalone**: `ginkgo --label-filter="sbr" --focus="required annotations" ./tests/storage-based-remediation-operator/...`
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="required annotations" ./tests/sbr-operator/...`
 - **Pass criteria**: Required annotations present with expected values
 
 ### 3. Verify SBR Controller Replicas and Node Distribution (Polarion TBD)
@@ -52,7 +52,7 @@ expected.
 - **Cluster**: Multi-node only (skips on SNO)
 - **Storage**: None
 - **Environment**: Connected or disconnected
-- **Standalone**: `ginkgo --label-filter="sbr" --focus="correct number of replicas" ./tests/storage-based-remediation-operator/...`
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="correct number of replicas" ./tests/sbr-operator/...`
 - **Pass criteria**: 2 ready replicas on 2 different nodes
 
 ### 4. Verify SBR Container Security Context (Polarion TBD)
@@ -66,5 +66,5 @@ or pod level). Only checks the `manager` container, not sidecars.
 - **Cluster**: Any topology
 - **Storage**: None
 - **Environment**: Connected or disconnected
-- **Standalone**: `ginkgo --label-filter="sbr" --focus="non-root user" ./tests/storage-based-remediation-operator/...`
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="non-root user" ./tests/sbr-operator/...`
 - **Pass criteria**: All security context fields match restricted profile

@@ -4,8 +4,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/medik8s/system-tests/tests/storage-based-remediation-operator/internal/sbrparams"
-	_ "github.com/medik8s/system-tests/tests/storage-based-remediation-operator/tests"
+	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
+	_ "github.com/medik8s/system-tests/tests/sbr-operator/tests"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
 	"github.com/medik8s/system-tests/tests/internal/reporter"
 	. "github.com/onsi/ginkgo/v2"

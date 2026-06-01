@@ -14,7 +14,7 @@ import (
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/pod"
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
 
-	"github.com/medik8s/system-tests/tests/storage-based-remediation-operator/internal/sbrparams"
+	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
 	"github.com/medik8s/system-tests/tests/internal/medik8sparams"
 
@@ -186,12 +186,21 @@ var _ = Describe(
 
 			sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 			Expect(err).ToNot(HaveOccurred(), "Failed to get SBR controller pods")
-			Expect(len(sbrPods)).To(BeNumerically(">", 0),
-				"At least one SBR controller pod should be found")
+
+			var runningPods []*pod.Builder
+
+			for _, p := range sbrPods {
+				if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
+					runningPods = append(runningPods, p)
+				}
+			}
+
+			Expect(len(runningPods)).To(BeNumerically(">", 0),
+				"At least one running SBR controller pod should be found")
 
 			var errorMessages []string
 
-			for _, sbrPod := range sbrPods {
+			for _, sbrPod := range runningPods {
 				By(fmt.Sprintf("Verifying security context for pod %s", sbrPod.Object.Name))
 
 				By("Checking pod-level runAsNonRoot security context")
