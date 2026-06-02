@@ -1,0 +1,63 @@
+package sbrparams
+
+import (
+	"github.com/medik8s/system-tests/tests/internal/medik8sparams"
+	"github.com/openshift-kni/k8sreporter"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+var (
+	// Labels represents the range of labels that can be used for test cases selection.
+	Labels = []string{medik8sparams.Label, Label}
+
+	// OperatorDeploymentName represents SBR deployment name.
+	OperatorDeploymentName = "sbr-operator-controller-manager"
+
+	// OperatorControllerPodLabel is how the controller pod is labeled.
+	OperatorControllerPodLabel = "sbr-operator"
+
+	// ReporterNamespacesToDump tells the reporter from where to collect logs.
+	ReporterNamespacesToDump = map[string]string{
+		medik8sparams.OperatorNs: medik8sparams.OperatorNs,
+		"openshift-machine-api":  "openshift-machine-api",
+	}
+
+	operatorNs = medik8sparams.OperatorNs
+
+	// ReporterCRDsToDump tells the reporter what CRs to dump.
+	ReporterCRDsToDump = []k8sreporter.CRData{
+		{Cr: &corev1.PodList{}},
+		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
+			"StorageBasedRemediationList")},
+		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
+			"StorageBasedRemediationConfigList")},
+		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
+			"StorageBasedRemediationTemplateList")},
+		{Cr: &coordinationv1.LeaseList{}, Namespace: &operatorNs},
+	}
+
+	// RequiredAnnotations defines the required annotations and expected values for SBR CSV.
+	RequiredAnnotations = map[string]string{
+		"features.operators.openshift.io/tls-profiles":     "false",
+		"features.operators.openshift.io/disconnected":     "true",
+		"features.operators.openshift.io/fips-compliant":   "false",
+		"features.operators.openshift.io/proxy-aware":      "false",
+		"features.operators.openshift.io/cnf":              "false",
+		"features.operators.openshift.io/cni":              "false",
+		"features.operators.openshift.io/csi":              "false",
+		"features.operators.openshift.io/token-auth-aws":   "false",
+		"features.operators.openshift.io/token-auth-azure": "false",
+		"features.operators.openshift.io/token-auth-gcp":   "false",
+		"operatorframework.io/suggested-namespace":         medik8sparams.OperatorNs,
+	}
+)
+
+func newUnstructuredList(group, version, kind string) *unstructured.UnstructuredList {
+	l := &unstructured.UnstructuredList{}
+	l.SetGroupVersionKind(schema.GroupVersionKind{Group: group, Version: version, Kind: kind})
+
+	return l
+}
