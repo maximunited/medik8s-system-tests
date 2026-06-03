@@ -39,6 +39,13 @@ var (
 		{Cr: &coordinationv1.LeaseList{}, Namespace: &operatorNs},
 	}
 
+	// ExpectedCRDKinds lists the Kubernetes kinds for all CRDs owned by the SBR operator.
+	ExpectedCRDKinds = []string{
+		"StorageBasedRemediation",
+		"StorageBasedRemediationConfig",
+		"StorageBasedRemediationTemplate",
+	}
+
 	// RequiredAnnotations defines the required annotations and expected values for SBR CSV.
 	RequiredAnnotations = map[string]string{
 		"features.operators.openshift.io/tls-profiles":     "false",

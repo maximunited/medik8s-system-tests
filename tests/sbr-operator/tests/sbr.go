@@ -14,6 +14,7 @@ import (
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/pod"
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
 
+	"github.com/medik8s/system-tests/tests/internal/labels"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
 	"github.com/medik8s/system-tests/tests/internal/medik8sparams"
 	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
@@ -307,6 +308,68 @@ var _ = Describe(
 					}
 
 					Fail(errMsg)
+				}
+			})
+
+		It("Verify SBR uses correct API and OLM naming",
+			reportxml.ID("88822"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentOLM,
+				labels.FrequencyPresubmit,
+			), func() {
+				By("Getting active SBR ClusterServiceVersion")
+
+				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
+					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
+				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR CSVs")
+				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
+					"At least one SBR CSV should be found in namespace %s", medik8sparams.OperatorNs)
+
+				var sbrCSV *olm.ClusterServiceVersionBuilder
+
+				for _, csv := range sbrCSVs {
+					phase, phaseErr := csv.GetPhase()
+					if phaseErr == nil && phase == oplmV1alpha1.CSVPhaseSucceeded {
+						sbrCSV = csv
+
+						break
+					}
+				}
+
+				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+
+				By("Verifying CSV display name uses 'Storage Based Remediation' naming")
+				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage Based Remediation"),
+					"CSV display name should use 'Storage Based Remediation' (not SBD), got: %q",
+					sbrCSV.Object.Spec.DisplayName)
+
+				By(fmt.Sprintf("Verifying all owned CRDs use API group %s", sbrparams.CRDGroup))
+
+				ownedCRDs := sbrCSV.Object.Spec.CustomResourceDefinitions.Owned
+				Expect(ownedCRDs).ToNot(BeEmpty(), "CSV should declare at least one owned CRD")
+
+				for _, expectedKind := range sbrparams.ExpectedCRDKinds {
+					By(fmt.Sprintf("Checking owned CRD for kind %s", expectedKind))
+
+					var matchedCRD *oplmV1alpha1.CRDDescription
+
+					for i := range ownedCRDs {
+						if ownedCRDs[i].Kind == expectedKind {
+							matchedCRD = &ownedCRDs[i]
+
+							break
+						}
+					}
+
+					Expect(matchedCRD).ToNot(BeNil(),
+						"CSV should own a CRD with kind %s", expectedKind)
+					Expect(matchedCRD.Name).To(ContainSubstring(sbrparams.CRDGroup),
+						"CRD %s name %q should include API group %s", expectedKind, matchedCRD.Name, sbrparams.CRDGroup)
+					Expect(matchedCRD.Version).To(Equal(sbrparams.CRDVersion),
+						"CRD %s should be at version %s", expectedKind, sbrparams.CRDVersion)
 				}
 			})
 	})
