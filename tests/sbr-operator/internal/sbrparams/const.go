@@ -15,4 +15,22 @@ const (
 
 	// CRDVersion is the API version for all SBR custom resources.
 	CRDVersion = "v1alpha1"
+
+	// SBRCTimeoutSecondsMin is the minimum allowed value for sbrTimeoutSeconds (CRD schema enforced).
+	SBRCTimeoutSecondsMin = 10
+
+	// SBRCTimeoutSecondsMax is the maximum allowed value for sbrTimeoutSeconds (CRD schema enforced).
+	SBRCTimeoutSecondsMax = 300
+
+	// SBRCMaxConsecutiveFailuresMin is the minimum allowed value for maxConsecutiveFailures (CRD schema enforced).
+	SBRCMaxConsecutiveFailuresMin = 2
+
+	// SBRCMaxConsecutiveFailuresMax is the maximum allowed value for maxConsecutiveFailures (CRD schema enforced).
+	SBRCMaxConsecutiveFailuresMax = 32
+
+	// SBRCInvalidTestName is the name used for short-lived invalid SBRC CRs in negative tests.
+	SBRCInvalidTestName = "test-invalid-sbrc"
+
+	// SBRCControllerTestName is the name used for SBRC CRs testing controller-layer validation.
+	SBRCControllerTestName = "test-controller-invalid-sbrc"
 )

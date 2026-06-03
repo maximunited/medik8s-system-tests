@@ -1,7 +1,9 @@
 package tests
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,7 +22,9 @@ import (
 	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var _ = Describe(
@@ -371,5 +375,110 @@ var _ = Describe(
 					Expect(matchedCRD.Version).To(Equal(sbrparams.CRDVersion),
 						"CRD %s should be at version %s", expectedKind, sbrparams.CRDVersion)
 				}
+			})
+	})
+
+var _ = Describe(
+	"SBR Negative Tests",
+	Ordered,
+	ContinueOnFailure,
+	Label(sbrparams.Label), func() {
+		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
+			reportxml.ID("88881"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentWebhook,
+				labels.FrequencyNightly,
+			), func() {
+				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range sbrTimeoutSeconds")
+
+				type invalidSBRCCase struct {
+					name  string
+					field string
+					value int64
+				}
+
+				for _, invalidCase := range []invalidSBRCCase{
+					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
+					{"above-max-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMax + 1},
+					{"below-min-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMin - 1},
+					{"above-max-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMax + 1},
+				} {
+					By(fmt.Sprintf("Attempting to create SBRC with %s=%d (expect rejection)",
+						invalidCase.field, invalidCase.value))
+
+					invalidSBRC := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
+							"kind":       "StorageBasedRemediationConfig",
+							"metadata": map[string]interface{}{
+								"name":      fmt.Sprintf("%s-%s", sbrparams.SBRCInvalidTestName, invalidCase.name),
+								"namespace": medik8sparams.OperatorNs,
+							},
+							"spec": map[string]interface{}{
+								invalidCase.field: invalidCase.value,
+							},
+						},
+					}
+
+					createErr := APIClient.Create(context.TODO(), invalidSBRC)
+					Expect(createErr).To(HaveOccurred(),
+						"API server should reject SBRC with %s=%d", invalidCase.field, invalidCase.value)
+					Expect(k8serrors.IsInvalid(createErr)).To(BeTrue(),
+						"Expected Invalid error for %s=%d, got: %v", invalidCase.field, invalidCase.value, createErr)
+				}
+
+				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
+
+				sbrc := &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
+						"kind":       "StorageBasedRemediationConfig",
+						"metadata": map[string]interface{}{
+							"name":      sbrparams.SBRCControllerTestName,
+							"namespace": medik8sparams.OperatorNs,
+						},
+						"spec": map[string]interface{}{
+							"sharedStorageClass": "nonexistent-storage-class",
+						},
+					},
+				}
+
+				err := APIClient.Create(context.TODO(), sbrc)
+				Expect(err).ToNot(HaveOccurred(),
+					"SBRC with invalid StorageClass reference should be admitted by API server")
+
+				DeferCleanup(func() {
+					By("Cleaning up controller-layer test SBRC")
+
+					deleteErr := APIClient.Delete(context.TODO(), sbrc)
+					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+							sbrparams.SBRCControllerTestName, deleteErr)
+					}
+				})
+
+				By("Recording baseline DaemonSet count in operator namespace before reconciliation")
+
+				baselineDSList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+					context.TODO(), metav1.ListOptions{})
+				Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+				baselineCount := len(baselineDSList.Items)
+
+				By("Verifying controller does not deploy a new DaemonSet for the invalid SBRC")
+
+				Consistently(func() int {
+					dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					if listErr != nil {
+						return baselineCount
+					}
+
+					return len(dsList.Items)
+				}, 30*time.Second, 5*time.Second).Should(Equal(baselineCount),
+					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 	})
