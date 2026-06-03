@@ -345,9 +345,12 @@ var _ = Describe(
 
 				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
 
-				By("Verifying CSV display name uses 'Storage Based Remediation' naming")
-				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage Based Remediation"),
-					"CSV display name should use 'Storage Based Remediation' (not SBD), got: %q",
+				By("Verifying CSV display name uses Storage-Based Remediation naming (not SBD)")
+				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage-Based Remediation"),
+					"CSV display name should contain 'Storage-Based Remediation' (not 'SBD'), got: %q",
+					sbrCSV.Object.Spec.DisplayName)
+				Expect(sbrCSV.Object.Spec.DisplayName).ToNot(ContainSubstring("SBD"),
+					"CSV display name should not use 'SBD' naming, got: %q",
 					sbrCSV.Object.Spec.DisplayName)
 
 				By(fmt.Sprintf("Verifying all owned CRDs use API group %s", sbrparams.CRDGroup))
