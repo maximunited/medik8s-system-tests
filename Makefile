@@ -7,6 +7,18 @@ endif
 BASE_IMG ?= system-tests
 BASE_TAG ?= latest
 
+## Tool Versions
+GINKGO_VERSION ?= v2.28.1
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+## Tool Binaries
+GINKGO_DIR ?= $(LOCALBIN)/ginkgo
+GINKGO = $(GINKGO_DIR)/$(GINKGO_VERSION)/ginkgo
+
 GO_PACKAGES=$(shell go list ./... | grep -v vendor)
 .PHONY: lint \
         deps-update \
@@ -33,19 +45,36 @@ endif
 	go mod tidy
 	go mod vendor
 
-install-ginkgo:
-	scripts/install-ginkgo.sh
+.PHONY: ginkgo
+ginkgo: $(LOCALBIN) ## Download ginkgo locally if necessary.
+	$(call go-install-tool,$(GINKGO),$(GINKGO_DIR),github.com/onsi/ginkgo/v2/ginkgo@${GINKGO_VERSION})
+
+# go-install-tool will delete old package $2, then 'go install' any package $3 to $1.
+define go-install-tool
+@[ -f $(1) ] || { \
+	set -e; \
+	rm -rf $(2); \
+	TMP_DIR=$$(mktemp -d); \
+	cd $$TMP_DIR; \
+	go mod init tmp; \
+	BIN_DIR=$$(dirname $(1)); \
+	mkdir -p $$BIN_DIR; \
+	echo "Downloading $(3)"; \
+	GOBIN=$$BIN_DIR GOFLAGS='' go install $(3); \
+	rm -rf $$TMP_DIR; \
+}
+endef
 
 build-docker-image:
 	@echo "Building docker image"
 	podman build -t "${BASE_IMG}:${BASE_TAG}" -f Dockerfile
 
-install: deps-update install-ginkgo
+install: deps-update ginkgo
 	@echo "Installing needed dependencies"
 
-run-tests:
+run-tests: ginkgo
 	@echo "Executing test-runner script"
-	scripts/test-runner.sh
+	GINKGO=$(GINKGO) scripts/test-runner.sh
 
 run-internal-pkg-unit-tests:
 	@echo "Executing internal package unit tests"
@@ -53,6 +82,6 @@ run-internal-pkg-unit-tests:
 
 # Note: To add more unit tests for more packages, add corresponding targets here
 test: run-internal-pkg-unit-tests
-	
+
 coverage-html: test
 	go tool cover -html cover.out
