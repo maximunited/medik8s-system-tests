@@ -577,9 +577,10 @@ var _ = Describe(
 				}
 			})
 
-		It("Verify StorageBasedRemediationConfig controller does not schedule DaemonSet for invalid SBRC",
+		It("Verify controller does not deploy a DaemonSet for SBRC with non-existent StorageClass",
 			reportxml.ID("88881"),
 			Label(
+				labels.OperatorSBR,
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
@@ -736,9 +737,11 @@ var _ = Describe(
 
 					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
 
+					sbrcCheck := sbrcRef.DeepCopy()
+
 					getErr := APIClient.Get(context.TODO(),
 						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
-						sbrcRef)
+						sbrcCheck)
 					Expect(getErr).ToNot(HaveOccurred(),
 						"SBRC %q must still exist after controller reconciliation with %s",
 						invalidCase.name, invalidCase.desc)
