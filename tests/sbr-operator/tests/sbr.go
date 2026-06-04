@@ -163,22 +163,7 @@ var _ = Describe(
 					Skip("Skipping test on SNO (Single Node OpenShift) cluster")
 				}
 
-				By("Verifying deployment spec and ready replicas")
-				Eventually(func() error {
-					liveDeploy, pullErr := deployment.Pull(APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
-					if pullErr != nil {
-						return pullErr
-					}
-
-					if liveDeploy.Object.Spec.Replicas == nil {
-						return fmt.Errorf("deployment Spec.Replicas is nil")
-					}
-
-					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
-					"SBR deployment should have non-nil Spec.Replicas")
-
-				By("Verifying ready replicas and pod HA distribution")
+				By("Verifying replica count, ready replicas, and pod HA distribution")
 
 				listOptions := metav1.ListOptions{
 					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
@@ -189,6 +174,17 @@ var _ = Describe(
 						APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
 					if pullErr != nil {
 						return pullErr
+					}
+
+					if liveDeploy.Object.Spec.Replicas == nil ||
+						*liveDeploy.Object.Spec.Replicas != sbrparams.ExpectedReplicas {
+						desired := int32(0)
+						if liveDeploy.Object.Spec.Replicas != nil {
+							desired = *liveDeploy.Object.Spec.Replicas
+						}
+
+						return fmt.Errorf("expected %d desired replica(s), found %d",
+							sbrparams.ExpectedReplicas, desired)
 					}
 
 					if liveDeploy.Object.Status.ReadyReplicas != sbrparams.ExpectedReplicas {
@@ -617,17 +613,6 @@ var _ = Describe(
 				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
-				By("Recording baseline DaemonSet names before creating invalid SBRCs")
-
-				baselineDSList, err := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for _, ds := range baselineDSList.Items {
-					baselineDSNames[ds.Name] = true
-				}
-
 				type invalidSBRCCase struct {
 					name               string
 					spec               map[string]interface{}
@@ -655,6 +640,17 @@ var _ = Describe(
 						requireNoDaemonSet: false,
 					},
 				} {
+					By(fmt.Sprintf("Recording baseline DaemonSet names before creating SBRC with %s", invalidCase.desc))
+
+					baselineDSList, baselineErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					Expect(baselineErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+					baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
+					for _, ds := range baselineDSList.Items {
+						baselineDSNames[ds.Name] = true
+					}
+
 					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
 
 					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
