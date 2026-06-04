@@ -51,6 +51,19 @@ func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
 	return running
 }
 
+func fetchActiveCSV() *olm.ClusterServiceVersionBuilder {
+	sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
+		APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
+	Expect(err).ToNot(HaveOccurred(), "Failed to list SBR ClusterServiceVersions")
+	Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
+		"At least one SBR ClusterServiceVersion should be found in namespace %s", medik8sparams.OperatorNs)
+
+	sbrCSV := findActiveCSV(sbrCSVs)
+	Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+
+	return sbrCSV
+}
+
 func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -125,16 +138,9 @@ var _ = Describe(
 			reportxml.ID("89233"), func() {
 				By("Getting SBR ClusterServiceVersion")
 
-				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
-					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR ClusterServiceVersions")
-				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
-					"At least one SBR ClusterServiceVersion should be found")
-
 				By("Finding the active (Succeeded) CSV")
 
-				sbrCSV := findActiveCSV(sbrCSVs)
-				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+				sbrCSV := fetchActiveCSV()
 
 				By("Checking annotation values on SBR CSV")
 
@@ -372,14 +378,7 @@ var _ = Describe(
 			), func() {
 				By("Getting active SBR ClusterServiceVersion")
 
-				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
-					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR CSVs")
-				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
-					"At least one SBR CSV should be found in namespace %s", medik8sparams.OperatorNs)
-
-				sbrCSV := findActiveCSV(sbrCSVs)
-				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+				sbrCSV := fetchActiveCSV()
 
 				By("Verifying CSV display name uses Storage-Based Remediation naming (not SBD)")
 				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage-Based Remediation"),
@@ -462,6 +461,8 @@ var _ = Describe(
 					value int64
 				}
 
+				var schemaErrors []string
+
 				for _, invalidCase := range []invalidSBRCCase{
 					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
 					{"above-max-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMax + 1},
@@ -487,13 +488,28 @@ var _ = Describe(
 									invalidSBRCRef.GetName(), deleteErr)
 							}
 						})
+
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("SBRC with %s=%d was unexpectedly admitted by the API server",
+								invalidCase.field, invalidCase.value))
+
+						continue
 					}
 
-					Expect(createErr).To(HaveOccurred(),
-						"API server should reject SBRC with %s=%d", invalidCase.field, invalidCase.value)
-					Expect(k8serrors.IsInvalid(createErr) || k8serrors.IsBadRequest(createErr)).To(BeTrue(),
-						"Expected Invalid or BadRequest error for %s=%d, got: %v",
-						invalidCase.field, invalidCase.value, createErr)
+					if !k8serrors.IsInvalid(createErr) && !k8serrors.IsBadRequest(createErr) {
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("expected Invalid or BadRequest error for %s=%d, got: %v",
+								invalidCase.field, invalidCase.value, createErr))
+					}
+				}
+
+				if len(schemaErrors) > 0 {
+					errMsg := "CRD schema validation failures:\n"
+					for _, msg := range schemaErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
 				}
 
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
