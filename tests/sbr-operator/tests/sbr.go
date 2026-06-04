@@ -180,26 +180,38 @@ var _ = Describe(
 						sbrparams.OperatorControllerPodLabel),
 				}
 
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return listErr
+					}
 
-				runningPods := filterRunningPods(sbrPods)
+					runningPods := filterRunningPods(sbrPods)
 
-				Expect(len(runningPods)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"Expected %d running SBR pod(s) for HA check, found %d",
-					sbrparams.ExpectedReplicas, len(runningPods))
+					if len(runningPods) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf("expected %d running SBR pod(s) for HA check, found %d",
+							sbrparams.ExpectedReplicas, len(runningPods))
+					}
 
-				nodeNames := make(map[string]bool)
+					nodeNames := make(map[string]bool)
 
-				for _, p := range runningPods {
-					Expect(p.Object.Spec.NodeName).ToNot(BeEmpty(),
-						"Pod %s has not been assigned to a node", p.Object.Name)
-					nodeNames[p.Object.Spec.NodeName] = true
-				}
+					for _, p := range runningPods {
+						if p.Object.Spec.NodeName == "" {
+							return fmt.Errorf("pod %s has not been assigned to a node", p.Object.Name)
+						}
 
-				Expect(len(nodeNames)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"SBR pods must run on different nodes for HA, but found pods on %d unique node(s)",
-					len(nodeNames))
+						nodeNames[p.Object.Spec.NodeName] = true
+					}
+
+					if len(nodeNames) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf(
+							"SBR pods must run on different nodes for HA, found pods on %d unique node(s)",
+							len(nodeNames))
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+					"SBR pods did not achieve HA distribution across %d nodes", sbrparams.ExpectedReplicas)
 			})
 
 		It("Verify SBR container runs as non-root user",
@@ -445,13 +457,16 @@ var _ = Describe(
 
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
 
-				By("Recording baseline DaemonSet count before creating the invalid SBRC")
+				By("Recording baseline DaemonSet names before creating the invalid SBRC")
 
 				baselineDSList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 					context.TODO(), metav1.ListOptions{})
 				Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
 
-				baselineCount := len(baselineDSList.Items)
+				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
+				for _, ds := range baselineDSList.Items {
+					baselineDSNames[ds.Name] = true
+				}
 
 				sbrc := buildSBRC(sbrparams.SBRCControllerTestName, medik8sparams.OperatorNs,
 					map[string]interface{}{
@@ -483,9 +498,12 @@ var _ = Describe(
 						return dsListErr
 					}
 
-					if len(dsList.Items) != baselineCount {
-						return fmt.Errorf("DaemonSet count changed from %d to %d",
-							baselineCount, len(dsList.Items))
+					for _, daemonSet := range dsList.Items {
+						if !baselineDSNames[daemonSet.Name] {
+							return fmt.Errorf(
+								"unexpected new DaemonSet %q appeared for SBRC with non-existent StorageClass",
+								daemonSet.Name)
+						}
 					}
 
 					return nil
