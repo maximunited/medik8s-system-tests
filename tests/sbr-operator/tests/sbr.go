@@ -51,6 +51,20 @@ func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
 	return running
 }
 
+func fetchActiveCSV() *olm.ClusterServiceVersionBuilder {
+	sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
+		APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
+	Expect(err).ToNot(HaveOccurred(), "Failed to list SBR ClusterServiceVersions")
+	Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
+		"At least one SBR ClusterServiceVersion should be found in namespace %s", medik8sparams.OperatorNs)
+
+	sbrCSV := findActiveCSV(sbrCSVs)
+	Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+
+	return sbrCSV
+}
+
+
 var _ = Describe(
 	"SBR Post Deployment tests",
 	Ordered,
@@ -124,16 +138,9 @@ var _ = Describe(
 			), func() {
 				By("Getting SBR ClusterServiceVersion")
 
-				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
-					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR ClusterServiceVersions")
-				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
-					"At least one SBR ClusterServiceVersion should be found")
-
 				By("Finding the active (Succeeded) CSV")
 
-				sbrCSV := findActiveCSV(sbrCSVs)
-				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+				sbrCSV := fetchActiveCSV()
 
 				By("Checking annotation values on SBR CSV")
 
@@ -383,14 +390,7 @@ var _ = Describe(
 			), func() {
 				By("Getting active SBR ClusterServiceVersion")
 
-				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
-					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR CSVs")
-				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
-					"At least one SBR CSV should be found in namespace %s", medik8sparams.OperatorNs)
-
-				sbrCSV := findActiveCSV(sbrCSVs)
-				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+				sbrCSV := fetchActiveCSV()
 
 				By("Verifying CSV display name uses Storage-Based Remediation naming (not SBD)")
 				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage-Based Remediation"),
@@ -515,6 +515,7 @@ var _ = Describe(
 
 					Fail(errMsg)
 				})
+
 
 				for _, invalidCase := range []invalidSBRCCase{
 					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
