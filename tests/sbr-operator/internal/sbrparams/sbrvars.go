@@ -13,10 +13,6 @@ var (
 	// Labels represents the range of labels that can be used for test cases selection.
 	Labels = []string{medik8sparams.Label, Label}
 
-	// OperatorControllerPodLabelSelector selects only controller-manager pods, excluding device-init and agent pods
-	// that share the app.kubernetes.io/name label.
-	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel + ",control-plane=controller-manager"
-
 
 	// ReporterNamespacesToDump tells the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{
