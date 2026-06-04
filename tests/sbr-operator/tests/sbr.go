@@ -518,6 +518,10 @@ var _ = Describe(
 					value int64
 				}
 
+				By("Recording baseline DaemonSet names before any SBRC is created")
+
+				baselineDSNames := snapshotDaemonSetNames()
+
 				var schemaErrors []string
 
 				DeferCleanup(func() {
@@ -575,10 +579,6 @@ var _ = Describe(
 
 
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
-
-				By("Recording baseline DaemonSet names before creating the invalid SBRC")
-
-				baselineDSNames := snapshotDaemonSetNames()
 
 				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
@@ -712,12 +712,13 @@ var _ = Describe(
 						}
 
 						return nil
-					}, 30*time.Second, 5*time.Second).Should(Succeed(),
+					}, sbrparams.SBRCConsistentlyDuration, 5*time.Second).Should(Succeed(),
 						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
 
 					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
 
-					sbrcCheck := sbrcRef.DeepCopy()
+					sbrcCheck := &unstructured.Unstructured{}
+					sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
 
 					getErr := APIClient.Get(context.TODO(),
 						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
