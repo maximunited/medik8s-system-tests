@@ -194,26 +194,38 @@ var _ = Describe(
 					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return listErr
+					}
 
-				runningPods := filterRunningPods(sbrPods)
+					runningPods := filterRunningPods(sbrPods)
 
-				Expect(len(runningPods)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"Expected %d running SBR pod(s) for HA check, found %d",
-					sbrparams.ExpectedReplicas, len(runningPods))
+					if len(runningPods) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf("expected %d running SBR pod(s) for HA check, found %d",
+							sbrparams.ExpectedReplicas, len(runningPods))
+					}
 
-				nodeNames := make(map[string]bool)
+					nodeNames := make(map[string]bool)
 
-				for _, p := range runningPods {
-					Expect(p.Object.Spec.NodeName).ToNot(BeEmpty(),
-						"Pod %s has not been assigned to a node", p.Object.Name)
-					nodeNames[p.Object.Spec.NodeName] = true
-				}
+					for _, p := range runningPods {
+						if p.Object.Spec.NodeName == "" {
+							return fmt.Errorf("pod %s has not been assigned to a node", p.Object.Name)
+						}
 
-				Expect(len(nodeNames)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"SBR pods must run on different nodes for HA, but found pods on %d unique node(s)",
-					len(nodeNames))
+						nodeNames[p.Object.Spec.NodeName] = true
+					}
+
+					if len(nodeNames) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf(
+							"SBR pods must run on different nodes for HA, found pods on %d unique node(s)",
+							len(nodeNames))
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+					"SBR pods did not achieve HA distribution across %d nodes", sbrparams.ExpectedReplicas)
 			})
 
 		It("Verify SBR container runs as non-root user",
@@ -549,7 +561,7 @@ var _ = Describe(
 
 				baselineDSNames := snapshotDaemonSetNames()
 
-				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
+			sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
 						"sharedStorageClass": "nonexistent-storage-class",
 					})
