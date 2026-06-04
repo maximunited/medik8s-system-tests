@@ -494,13 +494,16 @@ var _ = Describe(
 				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
-				By("Recording baseline DaemonSet count before creating invalid SBRCs")
+				By("Recording baseline DaemonSet names before creating invalid SBRCs")
 
 				baselineDSList, err := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 					context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
 
-				baselineCount := len(baselineDSList.Items)
+				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
+				for i := range baselineDSList.Items {
+					baselineDSNames[baselineDSList.Items[i].Name] = true
+				}
 
 				type invalidSBRCCase struct {
 					name string
@@ -558,25 +561,28 @@ var _ = Describe(
 
 					By(fmt.Sprintf("Verifying controller does not schedule agent pods for SBRC with %s", invalidCase.desc))
 
-					Consistently(func() bool {
+					Consistently(func() error {
 						dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 							context.TODO(), metav1.ListOptions{})
 						if listErr != nil {
-							return true
+							return listErr
 						}
 
-						if len(dsList.Items) == baselineCount {
-							return true
-						}
+						for _, daemonSet := range dsList.Items {
+							if baselineDSNames[daemonSet.Name] {
+								continue
+							}
 
-						for i := range dsList.Items {
-							if dsList.Items[i].Status.DesiredNumberScheduled > 0 {
-								return false
+							if daemonSet.Status.DesiredNumberScheduled > 0 {
+								return fmt.Errorf("new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for SBRC with %s",
+									daemonSet.Name,
+									daemonSet.Status.DesiredNumberScheduled,
+									invalidCase.desc)
 							}
 						}
 
-						return true
-					}, 30*time.Second, 5*time.Second).Should(BeTrue(),
+						return nil
+					}, 30*time.Second, 5*time.Second).Should(Succeed(),
 						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
 				}
 			})
