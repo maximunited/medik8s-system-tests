@@ -64,6 +64,19 @@ func fetchActiveCSV() *olm.ClusterServiceVersionBuilder {
 	return sbrCSV
 }
 
+func snapshotDaemonSetNames() map[string]bool {
+	dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+		context.TODO(), metav1.ListOptions{})
+	Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+	names := make(map[string]bool, len(dsList.Items))
+	for _, ds := range dsList.Items {
+		names[ds.Name] = true
+	}
+
+	return names
+}
+
 func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -507,6 +520,19 @@ var _ = Describe(
 
 				var schemaErrors []string
 
+				DeferCleanup(func() {
+					if len(schemaErrors) == 0 {
+						return
+					}
+
+					errMsg := "CRD schema validation failures:\n"
+					for _, msg := range schemaErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
+				})
+
 				for _, invalidCase := range []invalidSBRCCase{
 					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
 					{"above-max-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMax + 1},
@@ -551,14 +577,7 @@ var _ = Describe(
 
 				By("Recording baseline DaemonSet names before creating the invalid SBRC")
 
-				baselineDSList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for _, ds := range baselineDSList.Items {
-					baselineDSNames[ds.Name] = true
-				}
+				baselineDSNames := snapshotDaemonSetNames()
 
 				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
@@ -601,15 +620,6 @@ var _ = Describe(
 					return nil
 				}, 30*time.Second, 5*time.Second).Should(Succeed(),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
-
-				if len(schemaErrors) > 0 {
-					errMsg := "CRD schema validation failures:\n"
-					for _, msg := range schemaErrors {
-						errMsg += fmt.Sprintf("- %s\n", msg)
-					}
-
-					Fail(errMsg)
-				}
 			})
 
 		It("Verify SBRC controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
@@ -624,14 +634,7 @@ var _ = Describe(
 			), func() {
 				By("Recording baseline DaemonSet names before creating invalid SBRCs")
 
-				baselineDSList, baselineErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(baselineErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for _, ds := range baselineDSList.Items {
-					baselineDSNames[ds.Name] = true
-				}
+				baselineDSNames := snapshotDaemonSetNames()
 
 				type invalidSBRCCase struct {
 					name               string
