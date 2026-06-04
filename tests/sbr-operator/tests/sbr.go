@@ -555,9 +555,18 @@ var _ = Describe(
 
 					Fail(errMsg)
 				}
+			})
 
-				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
-
+		It("Verify controller does not deploy a DaemonSet for SBRC with non-existent StorageClass",
+			reportxml.ID("88881"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyNightly,
+			), func() {
 				By("Recording baseline DaemonSet names before creating the invalid SBRC")
 
 				baselineDSList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
@@ -713,9 +722,11 @@ var _ = Describe(
 
 					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
 
+					sbrcCheck := sbrcRef.DeepCopy()
+
 					getErr := APIClient.Get(context.TODO(),
 						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
-						sbrcRef)
+						sbrcCheck)
 					Expect(getErr).ToNot(HaveOccurred(),
 						"SBRC %q must still exist after controller reconciliation with %s",
 						invalidCase.name, invalidCase.desc)
