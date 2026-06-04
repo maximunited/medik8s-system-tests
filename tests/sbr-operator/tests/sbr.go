@@ -64,7 +64,6 @@ func fetchActiveCSV() *olm.ClusterServiceVersionBuilder {
 	return sbrCSV
 }
 
-
 var _ = Describe(
 	"SBR Post Deployment tests",
 	Ordered,
@@ -521,7 +520,6 @@ var _ = Describe(
 
 				var schemaErrors []string
 
-				// DeferCleanup so schema errors are reported even if subsequent assertions also fail.
 				DeferCleanup(func() {
 					if len(schemaErrors) == 0 {
 						return
@@ -534,7 +532,6 @@ var _ = Describe(
 
 					Fail(errMsg)
 				})
-
 
 				for _, invalidCase := range []invalidSBRCCase{
 					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
@@ -583,7 +580,7 @@ var _ = Describe(
 
 				baselineDSNames := snapshotDaemonSetNames()
 
-			sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
+				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
 						"sharedStorageClass": "nonexistent-storage-class",
 					})
@@ -624,15 +621,6 @@ var _ = Describe(
 					return nil
 				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Succeed(),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
-
-				if len(schemaErrors) > 0 {
-					errMsg := "CRD schema validation failures:\n"
-					for _, msg := range schemaErrors {
-						errMsg += fmt.Sprintf("- %s\n", msg)
-					}
-
-					Fail(errMsg)
-				}
 			})
 
 		It("Verify SBRC controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
@@ -647,14 +635,7 @@ var _ = Describe(
 			), func() {
 				By("Recording baseline DaemonSet names before creating invalid SBRCs")
 
-				baselineDSList, baselineErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(baselineErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for _, ds := range baselineDSList.Items {
-					baselineDSNames[ds.Name] = true
-				}
+				baselineDSNames := snapshotDaemonSetNames()
 
 				type invalidSBRCCase struct {
 					name               string
