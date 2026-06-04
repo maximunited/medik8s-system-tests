@@ -686,6 +686,13 @@ var _ = Describe(
 
 					By(fmt.Sprintf("Verifying controller does not schedule agent pods for SBRC with %s", invalidCase.desc))
 
+					// NOTE: both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body,
+					// not between iterations). Any DS created by iteration 1's watchdog SBRC *after*
+					// its SBRCConsistentlyDuration window is evaluated here with iteration 2's
+					// requireNoDaemonSet:false policy. If that DS has DesiredNumberScheduled==0 it
+					// passes silently — a known limitation of the shared observation window. In
+					// practice the watchdog SBRC has no nodeSelector, so any DS it creates would
+					// match all nodes (DesiredNumberScheduled>0) and would be caught here.
 					Consistently(func() error {
 						dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 							context.TODO(), metav1.ListOptions{})
