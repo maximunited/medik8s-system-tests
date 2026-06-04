@@ -13,12 +13,6 @@ var (
 	// Labels represents the range of labels that can be used for test cases selection.
 	Labels = []string{medik8sparams.Label, Label}
 
-	// OperatorDeploymentName represents SBR deployment name.
-	OperatorDeploymentName = "sbr-operator-controller-manager"
-
-	// OperatorControllerPodLabel is how the controller pod is labeled.
-	OperatorControllerPodLabel = "sbr-operator"
-
 	// ReporterNamespacesToDump tells the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{
 		medik8sparams.OperatorNs: medik8sparams.OperatorNs,

@@ -103,7 +103,15 @@ var _ = Describe(
 		})
 
 		It("Verify Storage-Based Remediation Operator pod is running",
-			reportxml.ID("89232"), func() {
+			reportxml.ID("89232"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				expectedCount := sbrparams.ExpectedReplicas
 				if controlPlaneTopology == configv1.SingleReplicaTopologyMode {
 					expectedCount = int32(1)
@@ -135,7 +143,15 @@ var _ = Describe(
 			})
 
 		It("Verify SBR CSV has required annotations",
-			reportxml.ID("89233"), func() {
+			reportxml.ID("89233"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentOLM,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR ClusterServiceVersion")
 
 				By("Finding the active (Succeeded) CSV")
@@ -156,7 +172,15 @@ var _ = Describe(
 			})
 
 		It("Verify SBR controller manager has correct number of replicas",
-			reportxml.ID("89234"), func() {
+			reportxml.ID("89234"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Checking cluster topology")
 
 				if controlPlaneTopology == configv1.SingleReplicaTopologyMode {
@@ -228,7 +252,15 @@ var _ = Describe(
 			})
 
 		It("Verify SBR container runs as non-root user",
-			reportxml.ID("89235"), func() {
+			reportxml.ID("89235"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR controller pod names")
 
 				listOptions := metav1.ListOptions{
@@ -577,17 +609,6 @@ var _ = Describe(
 				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
-				By("Recording baseline DaemonSet names before creating invalid SBRCs")
-
-				baselineDSList, baselineErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(baselineErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for _, ds := range baselineDSList.Items {
-					baselineDSNames[ds.Name] = true
-				}
-
 				type invalidSBRCCase struct {
 					name               string
 					spec               map[string]interface{}
@@ -615,6 +636,17 @@ var _ = Describe(
 						requireNoDaemonSet: false,
 					},
 				} {
+					By(fmt.Sprintf("Recording baseline DaemonSet names before creating SBRC with %s", invalidCase.desc))
+
+					baselineDSList, baselineErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					Expect(baselineErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+					baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
+					for _, ds := range baselineDSList.Items {
+						baselineDSNames[ds.Name] = true
+					}
+
 					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
 
 					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
