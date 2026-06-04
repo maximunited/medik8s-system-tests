@@ -1,5 +1,7 @@
 package sbrparams
 
+import "time"
+
 const (
 	// Label represents SBR operator label that can be used for test cases selection.
 	Label = "sbr"
@@ -60,4 +62,8 @@ const (
 
 	// CSVNamePattern is the substring used to match the SBR operator ClusterServiceVersion by name.
 	CSVNamePattern = "storage-based-remediation"
+
+	// SBRCConsistentlyDuration is the observation window used in negative tests to verify
+	// the controller does not create DaemonSets for invalid SBRC configurations.
+	SBRCConsistentlyDuration = 30 * time.Second
 )
