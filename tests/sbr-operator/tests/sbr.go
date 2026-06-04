@@ -28,6 +28,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+func buildSBRC(name, namespace string, spec map[string]interface{}) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
+			"kind":       "StorageBasedRemediationConfig",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": spec,
+		},
+	}
+}
+
 var _ = Describe(
 	"SBR Post Deployment tests",
 	Ordered,
@@ -436,19 +450,10 @@ var _ = Describe(
 
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
 
-				sbrc := &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-						"kind":       "StorageBasedRemediationConfig",
-						"metadata": map[string]interface{}{
-							"name":      sbrparams.SBRCControllerTestName,
-							"namespace": medik8sparams.OperatorNs,
-						},
-						"spec": map[string]interface{}{
-							"sharedStorageClass": "nonexistent-storage-class",
-						},
-					},
-				}
+				sbrc := buildSBRC(sbrparams.SBRCControllerTestName, medik8sparams.OperatorNs,
+					map[string]interface{}{
+						"sharedStorageClass": "nonexistent-storage-class",
+					})
 
 				err := APIClient.Create(context.TODO(), sbrc)
 				Expect(err).ToNot(HaveOccurred(),
@@ -507,9 +512,10 @@ var _ = Describe(
 				}
 
 				type invalidSBRCCase struct {
-					name string
-					spec map[string]interface{}
-					desc string
+					name               string
+					spec               map[string]interface{}
+					desc               string
+					requireNoDaemonSet bool
 				}
 
 				for _, invalidCase := range []invalidSBRCCase{
@@ -518,7 +524,8 @@ var _ = Describe(
 						spec: map[string]interface{}{
 							"watchdogPath": sbrparams.SBRCInvalidWatchdogPath,
 						},
-						desc: "invalid watchdog device path",
+						desc:               "invalid watchdog device path",
+						requireNoDaemonSet: true,
 					},
 					{
 						name: sbrparams.SBRCNoMatchSelectorTestName,
@@ -527,22 +534,13 @@ var _ = Describe(
 								sbrparams.SBRCNoMatchSelectorKey: sbrparams.SBRCNoMatchSelectorValue,
 							},
 						},
-						desc: "nodeSelector matching no cluster nodes",
+						desc:               "nodeSelector matching no cluster nodes",
+						requireNoDaemonSet: false,
 					},
 				} {
 					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
 
-					sbrc := &unstructured.Unstructured{
-						Object: map[string]interface{}{
-							"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-							"kind":       "StorageBasedRemediationConfig",
-							"metadata": map[string]interface{}{
-								"name":      invalidCase.name,
-								"namespace": medik8sparams.OperatorNs,
-							},
-							"spec": invalidCase.spec,
-						},
-					}
+					sbrc := buildSBRC(invalidCase.name, medik8sparams.OperatorNs, invalidCase.spec)
 
 					createErr := APIClient.Create(context.TODO(), sbrc)
 					Expect(createErr).ToNot(HaveOccurred(),
@@ -572,6 +570,11 @@ var _ = Describe(
 						for _, daemonSet := range dsList.Items {
 							if baselineDSNames[daemonSet.Name] {
 								continue
+							}
+
+							if invalidCase.requireNoDaemonSet {
+								return fmt.Errorf("new DaemonSet %q must not exist for SBRC with %s",
+									daemonSet.Name, invalidCase.desc)
 							}
 
 							if daemonSet.Status.DesiredNumberScheduled > 0 {
