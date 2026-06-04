@@ -39,6 +39,18 @@ func findActiveCSV(csvs []*olm.ClusterServiceVersionBuilder) *olm.ClusterService
 	return nil
 }
 
+func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
+	var running []*pod.Builder
+
+	for _, p := range pods {
+		if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
+			running = append(running, p)
+		}
+	}
+
+	return running
+}
+
 func buildSBRC(name, namespace string, spec map[string]interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -58,29 +70,29 @@ var _ = Describe(
 	Ordered,
 	ContinueOnFailure,
 	Label(sbrparams.Label), func() {
-		var sbrDeployment *deployment.Builder
+		var controlPlaneTopology configv1.TopologyMode
 
 		BeforeAll(func() {
-			By("Get SBR deployment object")
+			By("Get SBR deployment object and verify it is Ready")
 
-			var err error
-
-			sbrDeployment, err = deployment.Pull(
+			sbrDeployment, err := deployment.Pull(
 				APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
 			Expect(err).ToNot(HaveOccurred(), "Failed to get SBR deployment")
-
-			By("Verify SBR deployment is Ready")
 			Expect(sbrDeployment.IsReady(medik8sparams.DefaultTimeout)).To(BeTrue(),
 				"SBR deployment is not Ready")
+
+			By("Pull cluster topology for use in topology-aware tests")
+
+			infraConfig, infraErr := infrastructure.Pull(APIClient)
+			Expect(infraErr).ToNot(HaveOccurred(), "Failed to pull infrastructure configuration")
+
+			controlPlaneTopology = infraConfig.Object.Status.ControlPlaneTopology
 		})
 
 		It("Verify Storage-Based Remediation Operator pod is running",
 			reportxml.ID("89232"), func() {
-				infraConfig, err := infrastructure.Pull(APIClient)
-				Expect(err).ToNot(HaveOccurred(), "Failed to pull infrastructure configuration")
-
 				expectedCount := sbrparams.ExpectedReplicas
-				if infraConfig.Object.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode {
+				if controlPlaneTopology == configv1.SingleReplicaTopologyMode {
 					expectedCount = int32(1)
 				}
 
@@ -97,13 +109,7 @@ var _ = Describe(
 						return listErr
 					}
 
-					var runningCount int32
-
-					for _, p := range sbrPods {
-						if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-							runningCount++
-						}
-					}
+					runningCount := int32(len(filterRunningPods(sbrPods)))
 
 					if runningCount != expectedCount {
 						return fmt.Errorf("expected %d running SBR pod(s), found %d",
@@ -147,10 +153,7 @@ var _ = Describe(
 			reportxml.ID("89234"), func() {
 				By("Checking cluster topology")
 
-				infraConfig, err := infrastructure.Pull(APIClient)
-				Expect(err).ToNot(HaveOccurred(), "Failed to pull infrastructure configuration")
-
-				if infraConfig.Object.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode {
+				if controlPlaneTopology == configv1.SingleReplicaTopologyMode {
 					Skip("Skipping test on SNO (Single Node OpenShift) cluster")
 				}
 
@@ -180,16 +183,11 @@ var _ = Describe(
 				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
 
-				var runningPods []*pod.Builder
+				runningPods := filterRunningPods(sbrPods)
 
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
-					}
-				}
-
-				Expect(len(runningPods)).To(BeNumerically(">", 0),
-					"No running SBR pods found; cannot perform HA node-distribution check")
+				Expect(len(runningPods)).To(Equal(int(sbrparams.ExpectedReplicas)),
+					"Expected %d running SBR pod(s) for HA check, found %d",
+					sbrparams.ExpectedReplicas, len(runningPods))
 
 				nodeNames := make(map[string]bool)
 
@@ -216,13 +214,7 @@ var _ = Describe(
 				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 				Expect(err).ToNot(HaveOccurred(), "Failed to get SBR controller pods")
 
-				var runningPods []*pod.Builder
-
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
-					}
-				}
+				runningPods := filterRunningPods(sbrPods)
 
 				Expect(len(runningPods)).To(BeNumerically(">", 0),
 					"At least one running SBR controller pod should be found")
@@ -432,17 +424,19 @@ var _ = Describe(
 						map[string]interface{}{invalidCase.field: invalidCase.value},
 					)
 
-					invalidSBRCRef := invalidSBRC.DeepCopy()
-
-					DeferCleanup(func() {
-						deleteErr := APIClient.Delete(context.TODO(), invalidSBRCRef)
-						if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-							GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted SBRC %s: %v",
-								invalidSBRCRef.GetName(), deleteErr)
-						}
-					})
-
 					createErr := APIClient.Create(context.TODO(), invalidSBRC)
+					if createErr == nil {
+						invalidSBRCRef := invalidSBRC.DeepCopy()
+
+						DeferCleanup(func() {
+							deleteErr := APIClient.Delete(context.TODO(), invalidSBRCRef)
+							if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+								GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted SBRC %s: %v",
+									invalidSBRCRef.GetName(), deleteErr)
+							}
+						})
+					}
+
 					Expect(createErr).To(HaveOccurred(),
 						"API server should reject SBRC with %s=%d", invalidCase.field, invalidCase.value)
 					Expect(k8serrors.IsInvalid(createErr)).To(BeTrue(),
