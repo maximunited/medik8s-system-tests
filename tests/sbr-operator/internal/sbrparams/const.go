@@ -56,4 +56,10 @@ const (
 
 	// SBRCNoMatchSelectorValue is the node label value used to create an SBRC nodeSelector that matches no nodes.
 	SBRCNoMatchSelectorValue = "sbr-test-no-match-value"
+
+	// OperatorDeploymentName is the name of the SBR operator controller manager deployment.
+	OperatorDeploymentName = "sbr-operator-controller-manager"
+
+	// OperatorControllerPodLabel is the app label value used to select SBR controller pods.
+	OperatorControllerPodLabel = "sbr-operator"
 )
