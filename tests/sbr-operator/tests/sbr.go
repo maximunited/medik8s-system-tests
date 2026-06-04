@@ -51,14 +51,14 @@ func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
 	return running
 }
 
-func buildSBRC(name, namespace string, spec map[string]interface{}) *unstructured.Unstructured {
+func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
 			"kind":       "StorageBasedRemediationConfig",
 			"metadata": map[string]interface{}{
 				"name":      name,
-				"namespace": namespace,
+				"namespace": medik8sparams.OperatorNs,
 			},
 			"spec": spec,
 		},
@@ -168,12 +168,7 @@ var _ = Describe(
 					"Expected %d replica(s), found %d",
 					sbrparams.ExpectedReplicas, *freshDeploy.Object.Spec.Replicas)
 
-				By("Verifying ready replicas")
-				Expect(freshDeploy.Object.Status.ReadyReplicas).To(Equal(sbrparams.ExpectedReplicas),
-					"Expected %d ready replica(s), found %d",
-					sbrparams.ExpectedReplicas, freshDeploy.Object.Status.ReadyReplicas)
-
-				By("Verifying pods run on different nodes")
+				By("Verifying ready replicas and pod HA distribution")
 
 				listOptions := metav1.ListOptions{
 					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
@@ -181,6 +176,17 @@ var _ = Describe(
 				}
 
 				Eventually(func() error {
+					liveDeploy, pullErr := deployment.Pull(
+						APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
+					if pullErr != nil {
+						return pullErr
+					}
+
+					if liveDeploy.Object.Status.ReadyReplicas != sbrparams.ExpectedReplicas {
+						return fmt.Errorf("expected %d ready replica(s), found %d",
+							sbrparams.ExpectedReplicas, liveDeploy.Object.Status.ReadyReplicas)
+					}
+
 					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 					if listErr != nil {
 						return listErr
@@ -211,7 +217,8 @@ var _ = Describe(
 
 					return nil
 				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
-					"SBR pods did not achieve HA distribution across %d nodes", sbrparams.ExpectedReplicas)
+					"SBR deployment did not stabilise at %d ready replicas on distinct nodes",
+					sbrparams.ExpectedReplicas)
 			})
 
 		It("Verify SBR container runs as non-root user",
@@ -404,6 +411,29 @@ var _ = Describe(
 	Ordered,
 	ContinueOnFailure,
 	Label(sbrparams.Label), func() {
+		BeforeAll(func() {
+			By("Cleaning up any leftover test SBRCs from previous runs")
+
+			staleNames := []string{
+				sbrparams.SBRCControllerTestName,
+				sbrparams.SBRCWatchdogTestName,
+				sbrparams.SBRCNoMatchSelectorTestName,
+				fmt.Sprintf("%s-below-min-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-below-min-failures", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-failures", sbrparams.SBRCInvalidTestName),
+			}
+
+			for _, name := range staleNames {
+				staleRef := buildSBRC(name, map[string]interface{}{})
+
+				deleteErr := APIClient.Delete(context.TODO(), staleRef)
+				if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
+				}
+			}
+		})
+
 		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
 			reportxml.ID("88881"),
 			Label(
@@ -432,7 +462,6 @@ var _ = Describe(
 
 					invalidSBRC := buildSBRC(
 						fmt.Sprintf("%s-%s", sbrparams.SBRCInvalidTestName, invalidCase.name),
-						medik8sparams.OperatorNs,
 						map[string]interface{}{invalidCase.field: invalidCase.value},
 					)
 
@@ -468,7 +497,7 @@ var _ = Describe(
 					baselineDSNames[ds.Name] = true
 				}
 
-				sbrc := buildSBRC(sbrparams.SBRCControllerTestName, medik8sparams.OperatorNs,
+				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
 						"sharedStorageClass": "nonexistent-storage-class",
 					})
@@ -560,7 +589,7 @@ var _ = Describe(
 				} {
 					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
 
-					sbrc := buildSBRC(invalidCase.name, medik8sparams.OperatorNs, invalidCase.spec)
+					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
 
 					createErr := APIClient.Create(context.TODO(), sbrc)
 					Expect(createErr).ToNot(HaveOccurred(),
