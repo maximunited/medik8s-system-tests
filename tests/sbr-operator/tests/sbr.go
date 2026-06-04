@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"time"
 )
 
 var _ = Describe(
@@ -626,9 +628,10 @@ var _ = Describe(
 				}
 
 				type invalidSBRCCase struct {
-					name string
-					spec map[string]interface{}
-					desc string
+					name               string
+					spec               map[string]interface{}
+					desc               string
+					requireNoDaemonSet bool
 				}
 
 				for _, invalidCase := range []invalidSBRCCase{
@@ -637,7 +640,8 @@ var _ = Describe(
 						spec: map[string]interface{}{
 							"watchdogPath": sbrparams.SBRCInvalidWatchdogPath,
 						},
-						desc: "invalid watchdog device path",
+						desc:               "invalid watchdog device path",
+						requireNoDaemonSet: true,
 					},
 					{
 						name: sbrparams.SBRCNoMatchSelectorTestName,
@@ -646,22 +650,13 @@ var _ = Describe(
 								sbrparams.SBRCNoMatchSelectorKey: sbrparams.SBRCNoMatchSelectorValue,
 							},
 						},
-						desc: "nodeSelector matching no cluster nodes",
+						desc:               "nodeSelector matching no cluster nodes",
+						requireNoDaemonSet: false,
 					},
 				} {
 					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
 
-					sbrc := &unstructured.Unstructured{
-						Object: map[string]interface{}{
-							"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-							"kind":       "StorageBasedRemediationConfig",
-							"metadata": map[string]interface{}{
-								"name":      invalidCase.name,
-								"namespace": medik8sparams.OperatorNs,
-							},
-							"spec": invalidCase.spec,
-						},
-					}
+					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
 
 					createErr := APIClient.Create(context.TODO(), sbrc)
 					Expect(createErr).ToNot(HaveOccurred(),
@@ -691,6 +686,11 @@ var _ = Describe(
 						for _, daemonSet := range dsList.Items {
 							if baselineDSNames[daemonSet.Name] {
 								continue
+							}
+
+							if invalidCase.requireNoDaemonSet {
+								return fmt.Errorf("new DaemonSet %q must not exist for SBRC with %s",
+									daemonSet.Name, invalidCase.desc)
 							}
 
 							if daemonSet.Status.DesiredNumberScheduled > 0 {
