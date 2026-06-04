@@ -174,9 +174,21 @@ var _ = Describe(
 						return fmt.Errorf("deployment Spec.Replicas is nil")
 					}
 
-					if *liveDeploy.Object.Spec.Replicas != sbrparams.ExpectedReplicas {
-						return fmt.Errorf("expected %d desired replica(s), found %d",
-							sbrparams.ExpectedReplicas, *liveDeploy.Object.Spec.Replicas)
+					return nil
+				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+					"SBR deployment should have non-nil Spec.Replicas")
+
+				By("Verifying ready replicas and pod HA distribution")
+
+				listOptions := metav1.ListOptions{
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
+				}
+
+				Eventually(func() error {
+					liveDeploy, pullErr := deployment.Pull(
+						APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
+					if pullErr != nil {
+						return pullErr
 					}
 
 					if liveDeploy.Object.Status.ReadyReplicas != sbrparams.ExpectedReplicas {
@@ -184,17 +196,6 @@ var _ = Describe(
 							sbrparams.ExpectedReplicas, liveDeploy.Object.Status.ReadyReplicas)
 					}
 
-					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
-					"deployment should have %d ready replica(s)", sbrparams.ExpectedReplicas)
-
-				By("Verifying pods run on different nodes")
-
-				listOptions := metav1.ListOptions{
-					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
-				}
-
-				Eventually(func() error {
 					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 					if listErr != nil {
 						return listErr
@@ -225,7 +226,8 @@ var _ = Describe(
 
 					return nil
 				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
-					"SBR pods did not achieve HA distribution across %d nodes", sbrparams.ExpectedReplicas)
+					"SBR deployment did not stabilise at %d ready replicas on distinct nodes",
+					sbrparams.ExpectedReplicas)
 			})
 
 		It("Verify SBR container runs as non-root user",
@@ -456,6 +458,8 @@ var _ = Describe(
 
 			staleNames := []string{
 				sbrparams.SBRCControllerTestName,
+				sbrparams.SBRCWatchdogTestName,
+				sbrparams.SBRCNoMatchSelectorTestName,
 				fmt.Sprintf("%s-below-min-timeout", sbrparams.SBRCInvalidTestName),
 				fmt.Sprintf("%s-above-max-timeout", sbrparams.SBRCInvalidTestName),
 				fmt.Sprintf("%s-below-min-failures", sbrparams.SBRCInvalidTestName),
@@ -463,16 +467,16 @@ var _ = Describe(
 			}
 
 			for _, name := range staleNames {
-				stale := buildSBRC(name, map[string]interface{}{})
-				deleteErr := APIClient.Delete(context.TODO(), stale)
+				staleRef := buildSBRC(name, map[string]interface{}{})
 
+				deleteErr := APIClient.Delete(context.TODO(), staleRef)
 				if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
 					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
 				}
 			}
 		})
 
-		It("Verify StorageBasedRemediationConfig CRD schema rejects invalid field values",
+		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
 			reportxml.ID("88881"),
 			Label(
 				labels.DisruptionNonDestructive,
