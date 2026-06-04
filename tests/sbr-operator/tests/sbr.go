@@ -25,6 +25,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var _ = Describe(
@@ -620,8 +621,8 @@ var _ = Describe(
 				Expect(err).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
 
 				baselineDSNames := make(map[string]bool, len(baselineDSList.Items))
-				for i := range baselineDSList.Items {
-					baselineDSNames[baselineDSList.Items[i].Name] = true
+				for _, ds := range baselineDSList.Items {
+					baselineDSNames[ds.Name] = true
 				}
 
 				type invalidSBRCCase struct {
@@ -703,6 +704,15 @@ var _ = Describe(
 						return nil
 					}, 30*time.Second, 5*time.Second).Should(Succeed(),
 						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
+
+					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
+
+					getErr := APIClient.Get(context.TODO(),
+						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
+						sbrcRef)
+					Expect(getErr).ToNot(HaveOccurred(),
+						"SBRC %q must still exist after controller reconciliation with %s",
+						invalidCase.name, invalidCase.desc)
 				}
 			})
 	})
