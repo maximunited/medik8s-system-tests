@@ -41,4 +41,19 @@ const (
 
 	// SBRCControllerTestName is the name used for SBRC CRs testing controller-layer validation.
 	SBRCControllerTestName = "test-controller-invalid-sbrc"
+
+	// SBRCWatchdogTestName is the name used for SBRC CRs testing invalid watchdog path handling.
+	SBRCWatchdogTestName = "test-sbrc-watchdog-neg"
+
+	// SBRCNoMatchSelectorTestName is the name used for SBRC CRs testing non-matching nodeSelector handling.
+	SBRCNoMatchSelectorTestName = "test-sbrc-selector-neg"
+
+	// SBRCInvalidWatchdogPath is a watchdog device path guaranteed not to exist on test nodes.
+	SBRCInvalidWatchdogPath = "/dev/sbr-test-nonexistent-watchdog"
+
+	// SBRCNoMatchSelectorKey is the node label key used to create an SBRC nodeSelector that matches no nodes.
+	SBRCNoMatchSelectorKey = "sbr-test-no-match-selector"
+
+	// SBRCNoMatchSelectorValue is the node label value used to create an SBRC nodeSelector that matches no nodes.
+	SBRCNoMatchSelectorValue = "sbr-test-no-match-value"
 )
