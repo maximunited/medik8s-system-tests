@@ -26,9 +26,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-
-	"time"
 )
+
+func findActiveCSV(csvs []*olm.ClusterServiceVersionBuilder) *olm.ClusterServiceVersionBuilder {
+	for _, csv := range csvs {
+		phase, err := csv.GetPhase()
+		if err == nil && phase == oplmV1alpha1.CSVPhaseSucceeded {
+			return csv
+		}
+	}
+
+	return nil
+}
 
 var _ = Describe(
 	"SBR Post Deployment tests",
@@ -60,31 +69,6 @@ var _ = Describe(
 				labels.ComponentController,
 				labels.FrequencyPresubmit,
 			), func() {
-				listOptions := metav1.ListOptions{
-					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
-				}
-
-				_, err := pod.WaitForAllPodsInNamespaceRunning(
-					APIClient,
-					medik8sparams.OperatorNs,
-					medik8sparams.DefaultTimeout,
-					listOptions,
-				)
-				Expect(err).ToNot(HaveOccurred(), "Pod is not ready")
-
-				By("Verifying pod count matches expected replicas")
-
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
-
-				var runningPods []*pod.Builder
-
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
-					}
-				}
-
 				infraConfig, err := infrastructure.Pull(APIClient)
 				Expect(err).ToNot(HaveOccurred(), "Failed to pull infrastructure configuration")
 
@@ -93,8 +77,34 @@ var _ = Describe(
 					expectedCount = int32(1)
 				}
 
-				Expect(int32(len(runningPods))).To(Equal(expectedCount),
-					"Expected %d running SBR pod(s), found %d", expectedCount, len(runningPods))
+				listOptions := metav1.ListOptions{
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
+				}
+
+				By("Verifying pod count matches expected replicas")
+
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return listErr
+					}
+
+					var runningCount int32
+
+					for _, p := range sbrPods {
+						if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
+							runningCount++
+						}
+					}
+
+					if runningCount != expectedCount {
+						return fmt.Errorf("expected %d running SBR pod(s), found %d",
+							expectedCount, runningCount)
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+					"SBR pods did not reach expected running count of %d", expectedCount)
 			})
 
 		It("Verify SBR CSV has required annotations",
@@ -116,17 +126,7 @@ var _ = Describe(
 
 				By("Finding the active (Succeeded) CSV")
 
-				var sbrCSV *olm.ClusterServiceVersionBuilder
-
-				for _, csv := range sbrCSVs {
-					phase, phaseErr := csv.GetPhase()
-					if phaseErr == nil && phase == oplmV1alpha1.CSVPhaseSucceeded {
-						sbrCSV = csv
-
-						break
-					}
-				}
-
+				sbrCSV := findActiveCSV(sbrCSVs)
 				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
 
 				By("Checking annotation values on SBR CSV")
@@ -201,6 +201,9 @@ var _ = Describe(
 						runningPods = append(runningPods, p)
 					}
 				}
+
+				Expect(len(runningPods)).To(BeNumerically(">", 0),
+					"No running SBR pods found; cannot perform HA node-distribution check")
 
 				nodeNames := make(map[string]bool)
 
@@ -373,17 +376,7 @@ var _ = Describe(
 				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
 					"At least one SBR CSV should be found in namespace %s", medik8sparams.OperatorNs)
 
-				var sbrCSV *olm.ClusterServiceVersionBuilder
-
-				for _, csv := range sbrCSVs {
-					phase, phaseErr := csv.GetPhase()
-					if phaseErr == nil && phase == oplmV1alpha1.CSVPhaseSucceeded {
-						sbrCSV = csv
-
-						break
-					}
-				}
-
+				sbrCSV := findActiveCSV(sbrCSVs)
 				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
 
 				By("Verifying CSV display name uses Storage-Based Remediation naming (not SBD)")
