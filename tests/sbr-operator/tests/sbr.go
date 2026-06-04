@@ -53,7 +53,7 @@ func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
 
 func fetchActiveCSV() *olm.ClusterServiceVersionBuilder {
 	sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
-		APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
+		APIClient, sbrparams.CSVNamePattern, medik8sparams.OperatorNs)
 	Expect(err).ToNot(HaveOccurred(), "Failed to list SBR ClusterServiceVersions")
 	Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
 		"At least one SBR ClusterServiceVersion should be found in namespace %s", medik8sparams.OperatorNs)
@@ -117,10 +117,7 @@ var _ = Describe(
 					expectedCount = int32(1)
 				}
 
-				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
-				}
+				listOptions := metav1.ListOptions{LabelSelector: sbrparams.OperatorControllerPodLabelSelector}
 
 				By("Verifying pod count matches expected replicas")
 
@@ -162,12 +159,31 @@ var _ = Describe(
 
 				Expect(sbrCSV.Object.Annotations).ToNot(BeNil(), "CSV annotations should not be nil")
 
+				var annotationErrors []string
+
 				for annotationKey, expectedValue := range sbrparams.RequiredAnnotations {
 					annotationValue, exists := sbrCSV.Object.Annotations[annotationKey]
-					Expect(exists).To(BeTrue(),
-						"Required annotation %q should exist on SBR CSV", annotationKey)
-					Expect(annotationValue).To(Equal(expectedValue),
-						"Annotation %q should have value %q", annotationKey, expectedValue)
+					if !exists {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("annotation %q is missing", annotationKey))
+
+						continue
+					}
+
+					if annotationValue != expectedValue {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("annotation %q: expected %q, got %q",
+								annotationKey, expectedValue, annotationValue))
+					}
+				}
+
+				if len(annotationErrors) > 0 {
+					errMsg := "SBR CSV annotation validation failures:\n"
+					for _, msg := range annotationErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
 				}
 			})
 
@@ -189,10 +205,7 @@ var _ = Describe(
 
 				By("Verifying replica count, ready replicas, and pod HA distribution")
 
-				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
-				}
+				listOptions := metav1.ListOptions{LabelSelector: sbrparams.OperatorControllerPodLabelSelector}
 
 				Eventually(func() error {
 					liveDeploy, pullErr := deployment.Pull(
@@ -263,10 +276,7 @@ var _ = Describe(
 			), func() {
 				By("Getting SBR controller pod names")
 
-				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
-				}
+				listOptions := metav1.ListOptions{LabelSelector: sbrparams.OperatorControllerPodLabelSelector}
 
 				var runningPods []*pod.Builder
 
@@ -402,6 +412,7 @@ var _ = Describe(
 		It("Verify SBR uses correct API and OLM naming",
 			reportxml.ID("88822"),
 			Label(
+				labels.OperatorSBR,
 				labels.DisruptionNonDestructive,
 				labels.TierSmoke,
 				labels.PlatformAny,
@@ -479,6 +490,7 @@ var _ = Describe(
 		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
 			reportxml.ID("88881"),
 			Label(
+				labels.OperatorSBR,
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
@@ -603,6 +615,7 @@ var _ = Describe(
 		It("Verify SBRC controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
 			reportxml.ID("88741"),
 			Label(
+				labels.OperatorSBR,
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
