@@ -132,12 +132,23 @@ var _ = Describe(
 
 				listOptions := metav1.ListOptions{LabelSelector: sbrparams.OperatorControllerPodLabelSelector}
 
-				By("Verifying pod count matches expected replicas")
+				By("Verifying pod count matches expected replicas and no pods are unhealthy")
 
 				Eventually(func() error {
 					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
 					if listErr != nil {
 						return listErr
+					}
+
+					for _, p := range sbrPods {
+						if p.Object.DeletionTimestamp != nil {
+							continue
+						}
+
+						if p.Object.Status.Phase != corev1.PodRunning {
+							return fmt.Errorf("pod %s is not Running: phase=%s",
+								p.Object.Name, p.Object.Status.Phase)
+						}
 					}
 
 					runningCount := int32(len(filterRunningPods(sbrPods)))
@@ -498,6 +509,22 @@ var _ = Describe(
 					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
 				}
 			}
+
+			By("Waiting for controller to garbage-collect DaemonSets owned by deleted SBRCs")
+
+			Eventually(func(g Gomega) {
+				dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+					context.TODO(), metav1.ListOptions{})
+				g.Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets during GC wait")
+
+				for _, ds := range dsList.Items {
+					for _, staleName := range staleNames {
+						g.Expect(ds.Name).ToNot(Equal(staleName),
+							"DaemonSet %q still present after stale SBRC deletion", ds.Name)
+					}
+				}
+			}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				"Stale DaemonSets should be removed before tests begin")
 		})
 
 		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
@@ -524,6 +551,7 @@ var _ = Describe(
 
 				var schemaErrors []string
 
+				// DeferCleanup so schema errors are reported even if the Layer 2 assertion also fails.
 				DeferCleanup(func() {
 					if len(schemaErrors) == 0 {
 						return
@@ -622,7 +650,7 @@ var _ = Describe(
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 
-		It("Verify SBRC controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
+		It("Verify SBRC controller does not schedule agent pods for invalid watchdog path",
 			reportxml.ID("88741"),
 			Label(
 				labels.OperatorSBR,
@@ -632,106 +660,142 @@ var _ = Describe(
 				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
-				By("Recording baseline DaemonSet names before creating invalid SBRCs")
+				By("Recording baseline DaemonSet names before creating invalid SBRC")
 
 				baselineDSNames := snapshotDaemonSetNames()
 
-				type invalidSBRCCase struct {
-					name               string
-					spec               map[string]interface{}
-					desc               string
-					requireNoDaemonSet bool
-				}
+				By("Creating SBRC with invalid watchdog device path")
 
-				for _, invalidCase := range []invalidSBRCCase{
-					{
-						name: sbrparams.SBRCWatchdogTestName,
-						spec: map[string]interface{}{
-							"watchdogPath": sbrparams.SBRCInvalidWatchdogPath,
-						},
-						desc:               "invalid watchdog device path",
-						requireNoDaemonSet: true,
+				sbrc := buildSBRC(sbrparams.SBRCWatchdogTestName, map[string]interface{}{
+					"watchdogPath": sbrparams.SBRCInvalidWatchdogPath,
+				})
+
+				createErr := APIClient.Create(context.TODO(), sbrc)
+				Expect(createErr).ToNot(HaveOccurred(),
+					"SBRC with invalid watchdog device path should be admitted by the API server")
+
+				sbrcRef := sbrc.DeepCopy()
+
+				DeferCleanup(func() {
+					By(fmt.Sprintf("Cleaning up test SBRC %s", sbrcRef.GetName()))
+
+					deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
+					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+							sbrcRef.GetName(), deleteErr)
+					}
+				})
+
+				By("Verifying controller does not schedule agent pods for SBRC with invalid watchdog path")
+
+				Consistently(func() error {
+					dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					if listErr != nil {
+						return listErr
+					}
+
+					for _, daemonSet := range dsList.Items {
+						if baselineDSNames[daemonSet.Name] {
+							continue
+						}
+
+						return fmt.Errorf("new DaemonSet %q must not exist for SBRC with invalid watchdog path",
+							daemonSet.Name)
+					}
+
+					return nil
+				}, sbrparams.SBRCConsistentlyDuration, 5*time.Second).Should(Succeed(),
+					"Controller must not schedule agent pods for SBRC with invalid watchdog path")
+
+				By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation",
+					sbrparams.SBRCWatchdogTestName))
+
+				sbrcCheck := &unstructured.Unstructured{}
+				sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
+
+				getErr := APIClient.Get(context.TODO(),
+					types.NamespacedName{Name: sbrparams.SBRCWatchdogTestName, Namespace: medik8sparams.OperatorNs},
+					sbrcCheck)
+				Expect(getErr).ToNot(HaveOccurred(),
+					"SBRC %q must still exist after controller reconciliation",
+					sbrparams.SBRCWatchdogTestName)
+			})
+
+		It("Verify SBRC controller does not schedule agent pods for non-matching nodeSelector",
+			reportxml.ID("88741"),
+			Label(
+				labels.OperatorSBR,
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyNightly,
+			), func() {
+				By("Recording baseline DaemonSet names before creating invalid SBRC")
+
+				baselineDSNames := snapshotDaemonSetNames()
+
+				By("Creating SBRC with nodeSelector matching no cluster nodes")
+
+				sbrc := buildSBRC(sbrparams.SBRCNoMatchSelectorTestName, map[string]interface{}{
+					"nodeSelector": map[string]interface{}{
+						sbrparams.SBRCNoMatchSelectorKey: sbrparams.SBRCNoMatchSelectorValue,
 					},
-					{
-						name: sbrparams.SBRCNoMatchSelectorTestName,
-						spec: map[string]interface{}{
-							"nodeSelector": map[string]interface{}{
-								sbrparams.SBRCNoMatchSelectorKey: sbrparams.SBRCNoMatchSelectorValue,
-							},
-						},
-						desc:               "nodeSelector matching no cluster nodes",
-						requireNoDaemonSet: false,
-					},
-				} {
-					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
+				})
 
-					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
+				createErr := APIClient.Create(context.TODO(), sbrc)
+				Expect(createErr).ToNot(HaveOccurred(),
+					"SBRC with non-matching nodeSelector should be admitted by the API server")
 
-					createErr := APIClient.Create(context.TODO(), sbrc)
-					Expect(createErr).ToNot(HaveOccurred(),
-						"SBRC with %s should be admitted by the API server", invalidCase.desc)
+				sbrcRef := sbrc.DeepCopy()
 
-					sbrcRef := sbrc.DeepCopy()
+				DeferCleanup(func() {
+					By(fmt.Sprintf("Cleaning up test SBRC %s", sbrcRef.GetName()))
 
-					DeferCleanup(func() {
-						By(fmt.Sprintf("Cleaning up test SBRC %s", sbrcRef.GetName()))
+					deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
+					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+							sbrcRef.GetName(), deleteErr)
+					}
+				})
 
-						deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
-						if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-							GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
-								sbrcRef.GetName(), deleteErr)
-						}
-					})
+				By("Verifying controller does not schedule agent pods for SBRC with non-matching nodeSelector")
 
-					By(fmt.Sprintf("Verifying controller does not schedule agent pods for SBRC with %s", invalidCase.desc))
+				Consistently(func() error {
+					dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					if listErr != nil {
+						return listErr
+					}
 
-					// NOTE: both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body,
-					// not between iterations). Any DS created by iteration 1's watchdog SBRC *after*
-					// its SBRCConsistentlyDuration window is evaluated here with iteration 2's
-					// requireNoDaemonSet:false policy. If that DS has DesiredNumberScheduled==0 it
-					// passes silently — a known limitation of the shared observation window. In
-					// practice the watchdog SBRC has no nodeSelector, so any DS it creates would
-					// match all nodes (DesiredNumberScheduled>0) and would be caught here.
-					Consistently(func() error {
-						dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-							context.TODO(), metav1.ListOptions{})
-						if listErr != nil {
-							return listErr
+					for _, daemonSet := range dsList.Items {
+						if baselineDSNames[daemonSet.Name] {
+							continue
 						}
 
-						for _, daemonSet := range dsList.Items {
-							if baselineDSNames[daemonSet.Name] {
-								continue
-							}
-
-							if invalidCase.requireNoDaemonSet {
-								return fmt.Errorf("new DaemonSet %q must not exist for SBRC with %s",
-									daemonSet.Name, invalidCase.desc)
-							}
-
-							if daemonSet.Status.DesiredNumberScheduled > 0 {
-								return fmt.Errorf("new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for SBRC with %s",
-									daemonSet.Name,
-									daemonSet.Status.DesiredNumberScheduled,
-									invalidCase.desc)
-							}
+						if daemonSet.Status.DesiredNumberScheduled > 0 {
+							return fmt.Errorf(
+								"new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for SBRC with non-matching nodeSelector",
+								daemonSet.Name, daemonSet.Status.DesiredNumberScheduled)
 						}
+					}
 
-						return nil
-					}, sbrparams.SBRCConsistentlyDuration, 5*time.Second).Should(Succeed(),
-						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
+					return nil
+				}, sbrparams.SBRCConsistentlyDuration, 5*time.Second).Should(Succeed(),
+					"Controller must not schedule agent pods for SBRC with non-matching nodeSelector")
 
-					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
+				By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation",
+					sbrparams.SBRCNoMatchSelectorTestName))
 
-					sbrcCheck := &unstructured.Unstructured{}
-					sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
+				sbrcCheck := &unstructured.Unstructured{}
+				sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
 
-					getErr := APIClient.Get(context.TODO(),
-						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
-						sbrcCheck)
-					Expect(getErr).ToNot(HaveOccurred(),
-						"SBRC %q must still exist after controller reconciliation with %s",
-						invalidCase.name, invalidCase.desc)
-				}
+				getErr := APIClient.Get(context.TODO(),
+					types.NamespacedName{Name: sbrparams.SBRCNoMatchSelectorTestName, Namespace: medik8sparams.OperatorNs},
+					sbrcCheck)
+				Expect(getErr).ToNot(HaveOccurred(),
+					"SBRC %q must still exist after controller reconciliation",
+					sbrparams.SBRCNoMatchSelectorTestName)
 			})
 	})
