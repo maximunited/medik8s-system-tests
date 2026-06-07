@@ -91,7 +91,6 @@ var _ = Describe(
 		It("Verify Storage-Based Remediation Operator pod is running",
 			reportxml.ID("89232"),
 			Label(
-
 				labels.DisruptionNonDestructive,
 				labels.TierSmoke,
 				labels.PlatformAny,
@@ -128,7 +127,6 @@ var _ = Describe(
 		It("Verify SBR CSV has required annotations",
 			reportxml.ID("89233"),
 			Label(
-
 				labels.DisruptionNonDestructive,
 				labels.TierSmoke,
 				labels.PlatformAny,
@@ -176,7 +174,6 @@ var _ = Describe(
 		It("Verify SBR controller manager has correct number of replicas",
 			reportxml.ID("89234"),
 			Label(
-
 				labels.DisruptionNonDestructive,
 				labels.TierSmoke,
 				labels.PlatformAny,
@@ -253,7 +250,6 @@ var _ = Describe(
 		It("Verify SBR container runs as non-root user",
 			reportxml.ID("89235"),
 			Label(
-
 				labels.DisruptionNonDestructive,
 				labels.TierSmoke,
 				labels.PlatformAny,
