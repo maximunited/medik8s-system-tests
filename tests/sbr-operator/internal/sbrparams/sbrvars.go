@@ -30,12 +30,9 @@ var (
 	// ReporterCRDsToDump tells the reporter what CRs to dump.
 	ReporterCRDsToDump = []k8sreporter.CRData{
 		{Cr: &corev1.PodList{}},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationList")},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationConfigList")},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationTemplateList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationConfigList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationTemplateList")},
 		{Cr: &coordinationv1.LeaseList{}, Namespace: &operatorNs},
 	}
 

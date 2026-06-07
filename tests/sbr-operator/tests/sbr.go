@@ -380,12 +380,51 @@ var _ = Describe(
 			})
 	})
 
+func snapshotDaemonSetNames() map[string]bool {
+	dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+		context.TODO(), metav1.ListOptions{})
+	Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+	names := make(map[string]bool, len(dsList.Items))
+	for _, ds := range dsList.Items {
+		names[ds.Name] = true
+	}
+
+	return names
+}
+
+func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
+			"kind":       "StorageBasedRemediationConfig",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": medik8sparams.OperatorNs,
+			},
+			"spec": spec,
+		},
+	}
+}
+
 var _ = Describe(
 	"SBR Negative Tests",
 	Ordered,
 	ContinueOnFailure,
 	Label(sbrparams.Label), func() {
-		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
+		BeforeAll(func() {
+			By("Cleaning up any leftover test SBRCs from previous runs")
+
+			stale := buildSBRC(sbrparams.SBRCControllerTestName, map[string]interface{}{})
+			deleteErr := APIClient.Delete(context.TODO(), stale)
+
+			if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+				GinkgoT().Logf("Warning: failed to delete stale SBRC %s: %v",
+					sbrparams.SBRCControllerTestName, deleteErr)
+			}
+		})
+
+		It("Verify StorageBasedRemediationConfig CRD schema rejects invalid field values",
 			reportxml.ID("88881"),
 			Label(
 				labels.DisruptionNonDestructive,
@@ -394,13 +433,29 @@ var _ = Describe(
 				labels.ComponentWebhook,
 				labels.FrequencyNightly,
 			), func() {
-				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range sbrTimeoutSeconds")
+				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range field values")
 
 				type invalidSBRCCase struct {
 					name  string
 					field string
 					value int64
 				}
+
+				var schemaErrors []string
+
+				// DeferCleanup so schema errors are reported even if subsequent assertions also fail.
+				DeferCleanup(func() {
+					if len(schemaErrors) == 0 {
+						return
+					}
+
+					errMsg := "CRD schema validation failures:\n"
+					for _, msg := range schemaErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
+				})
 
 				for _, invalidCase := range []invalidSBRCCase{
 					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
@@ -411,74 +466,93 @@ var _ = Describe(
 					By(fmt.Sprintf("Attempting to create SBRC with %s=%d (expect rejection)",
 						invalidCase.field, invalidCase.value))
 
-					invalidSBRC := &unstructured.Unstructured{
-						Object: map[string]interface{}{
-							"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-							"kind":       "StorageBasedRemediationConfig",
-							"metadata": map[string]interface{}{
-								"name":      fmt.Sprintf("%s-%s", sbrparams.SBRCInvalidTestName, invalidCase.name),
-								"namespace": medik8sparams.OperatorNs,
-							},
-							"spec": map[string]interface{}{
-								invalidCase.field: invalidCase.value,
-							},
-						},
-					}
+					invalidSBRC := buildSBRC(
+						fmt.Sprintf("%s-%s", sbrparams.SBRCInvalidTestName, invalidCase.name),
+						map[string]interface{}{invalidCase.field: invalidCase.value},
+					)
 
 					createErr := APIClient.Create(context.TODO(), invalidSBRC)
-					Expect(createErr).To(HaveOccurred(),
-						"API server should reject SBRC with %s=%d", invalidCase.field, invalidCase.value)
-					Expect(k8serrors.IsInvalid(createErr)).To(BeTrue(),
-						"Expected Invalid error for %s=%d, got: %v", invalidCase.field, invalidCase.value, createErr)
-				}
+					if createErr == nil {
+						invalidSBRCRef := invalidSBRC.DeepCopy()
 
+						DeferCleanup(func() {
+							deleteErr := APIClient.Delete(context.TODO(), invalidSBRCRef)
+							if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+								GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted SBRC %s: %v",
+									invalidSBRCRef.GetName(), deleteErr)
+							}
+						})
+
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("SBRC with %s=%d was unexpectedly admitted by the API server",
+								invalidCase.field, invalidCase.value))
+
+						continue
+					}
+
+					if !k8serrors.IsInvalid(createErr) && !k8serrors.IsBadRequest(createErr) {
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("expected Invalid or BadRequest error for %s=%d, got: %v",
+								invalidCase.field, invalidCase.value, createErr))
+					}
+				}
+			})
+
+		It("Verify StorageBasedRemediationConfig controller does not schedule DaemonSet for invalid SBRC",
+			reportxml.ID("88881"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentWebhook,
+				labels.FrequencyNightly,
+			), func() {
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
 
-				sbrc := &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-						"kind":       "StorageBasedRemediationConfig",
-						"metadata": map[string]interface{}{
-							"name":      sbrparams.SBRCControllerTestName,
-							"namespace": medik8sparams.OperatorNs,
-						},
-						"spec": map[string]interface{}{
-							"sharedStorageClass": "nonexistent-storage-class",
-						},
-					},
-				}
+				By("Recording baseline DaemonSet names before creating the invalid SBRC")
+
+				baselineDSNames := snapshotDaemonSetNames()
+
+				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
+					map[string]interface{}{
+						"sharedStorageClass": "nonexistent-storage-class",
+					})
 
 				err := APIClient.Create(context.TODO(), sbrc)
 				Expect(err).ToNot(HaveOccurred(),
 					"SBRC with invalid StorageClass reference should be admitted by API server")
 
+				sbrcRef := sbrc.DeepCopy()
+
 				DeferCleanup(func() {
 					By("Cleaning up controller-layer test SBRC")
 
-					deleteErr := APIClient.Delete(context.TODO(), sbrc)
+					deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
 					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
 						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
 							sbrparams.SBRCControllerTestName, deleteErr)
 					}
 				})
 
-				By("Recording baseline DaemonSet count in operator namespace before reconciliation")
-
-				baselineDSList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
-					context.TODO(), metav1.ListOptions{})
-				Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
-
-				baselineCount := len(baselineDSList.Items)
-
 				By("Verifying controller does not deploy a new DaemonSet for the invalid SBRC")
 
-				Consistently(func(g Gomega) int {
-					dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+				Consistently(func() error {
+					dsList, dsListErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 						context.TODO(), metav1.ListOptions{})
-					g.Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets while polling")
+					if dsListErr != nil {
+						return dsListErr
+					}
 
-					return len(dsList.Items)
-				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Equal(baselineCount),
+					for _, ds := range dsList.Items {
+						if !baselineDSNames[ds.Name] {
+							return fmt.Errorf(
+								"unexpected new DaemonSet %q appeared for SBRC with non-existent StorageClass",
+								ds.Name)
+						}
+					}
+
+					return nil
+				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Succeed(),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 	})
