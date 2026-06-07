@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -48,7 +49,14 @@ var _ = Describe(
 		})
 
 		It("Verify Storage-Based Remediation Operator pod is running",
-			reportxml.ID("89232"), func() {
+			reportxml.ID("89232"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				listOptions := metav1.ListOptions{
 					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
@@ -87,7 +95,14 @@ var _ = Describe(
 			})
 
 		It("Verify SBR CSV has required annotations",
-			reportxml.ID("89233"), func() {
+			reportxml.ID("89233"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentOLM,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR ClusterServiceVersion")
 
 				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
@@ -125,7 +140,14 @@ var _ = Describe(
 			})
 
 		It("Verify SBR controller manager has correct number of replicas",
-			reportxml.ID("89234"), func() {
+			reportxml.ID("89234"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Checking cluster topology")
 
 				infraConfig, err := infrastructure.Pull(APIClient)
@@ -135,17 +157,30 @@ var _ = Describe(
 					Skip("Skipping test on SNO (Single Node OpenShift) cluster")
 				}
 
-				By("Checking deployment replicas")
-				Expect(sbrDeployment.Object.Spec.Replicas).ToNot(BeNil(),
-					"Deployment replicas should not be nil")
-				Expect(*sbrDeployment.Object.Spec.Replicas).To(Equal(sbrparams.ExpectedReplicas),
-					"Expected %d replica(s), found %d",
-					sbrparams.ExpectedReplicas, *sbrDeployment.Object.Spec.Replicas)
+				By("Verifying deployment spec and ready replicas")
+				Eventually(func() error {
+					liveDeploy, pullErr := deployment.Pull(APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
+					if pullErr != nil {
+						return pullErr
+					}
 
-				By("Verifying ready replicas")
-				Expect(sbrDeployment.Object.Status.ReadyReplicas).To(Equal(sbrparams.ExpectedReplicas),
-					"Expected %d ready replica(s), found %d",
-					sbrparams.ExpectedReplicas, sbrDeployment.Object.Status.ReadyReplicas)
+					if liveDeploy.Object.Spec.Replicas == nil {
+						return fmt.Errorf("deployment Spec.Replicas is nil")
+					}
+
+					if *liveDeploy.Object.Spec.Replicas != sbrparams.ExpectedReplicas {
+						return fmt.Errorf("expected %d desired replica(s), found %d",
+							sbrparams.ExpectedReplicas, *liveDeploy.Object.Spec.Replicas)
+					}
+
+					if liveDeploy.Object.Status.ReadyReplicas != sbrparams.ExpectedReplicas {
+						return fmt.Errorf("expected %d ready replica(s), found %d",
+							sbrparams.ExpectedReplicas, liveDeploy.Object.Status.ReadyReplicas)
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+					"deployment should have %d ready replica(s)", sbrparams.ExpectedReplicas)
 
 				By("Verifying pods run on different nodes")
 
@@ -178,7 +213,14 @@ var _ = Describe(
 			})
 
 		It("Verify SBR container runs as non-root user",
-			reportxml.ID("89235"), func() {
+			reportxml.ID("89235"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR controller pod names")
 
 				listOptions := metav1.ListOptions{
@@ -412,12 +454,21 @@ var _ = Describe(
 		BeforeAll(func() {
 			By("Cleaning up any leftover test SBRCs from previous runs")
 
-			stale := buildSBRC(sbrparams.SBRCControllerTestName, map[string]interface{}{})
-			deleteErr := APIClient.Delete(context.TODO(), stale)
+			staleNames := []string{
+				sbrparams.SBRCControllerTestName,
+				fmt.Sprintf("%s-below-min-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-below-min-failures", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-failures", sbrparams.SBRCInvalidTestName),
+			}
 
-			if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-				GinkgoT().Logf("Warning: failed to delete stale SBRC %s: %v",
-					sbrparams.SBRCControllerTestName, deleteErr)
+			for _, name := range staleNames {
+				stale := buildSBRC(name, map[string]interface{}{})
+				deleteErr := APIClient.Delete(context.TODO(), stale)
+
+				if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
+				}
 			}
 		})
 
@@ -501,7 +552,7 @@ var _ = Describe(
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
-				labels.ComponentWebhook,
+				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
