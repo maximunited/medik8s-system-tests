@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -130,12 +129,31 @@ var _ = Describe(
 
 				Expect(sbrCSV.Object.Annotations).ToNot(BeNil(), "CSV annotations should not be nil")
 
+				var annotationErrors []string
+
 				for annotationKey, expectedValue := range sbrparams.RequiredAnnotations {
 					annotationValue, exists := sbrCSV.Object.Annotations[annotationKey]
-					Expect(exists).To(BeTrue(),
-						"Required annotation %q should exist on SBR CSV", annotationKey)
-					Expect(annotationValue).To(Equal(expectedValue),
-						"Annotation %q should have value %q", annotationKey, expectedValue)
+					if !exists {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("required annotation %q is missing", annotationKey))
+
+						continue
+					}
+
+					if annotationValue != expectedValue {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("annotation %q: expected %q, got %q",
+								annotationKey, expectedValue, annotationValue))
+					}
+				}
+
+				if len(annotationErrors) > 0 {
+					errMsg := "SBR CSV annotation validation failures:\n"
+					for _, msg := range annotationErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
 				}
 			})
 
@@ -179,7 +197,7 @@ var _ = Describe(
 					}
 
 					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"deployment should have %d ready replica(s)", sbrparams.ExpectedReplicas)
 
 				By("Verifying pods run on different nodes")
@@ -188,28 +206,34 @@ var _ = Describe(
 					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
-
-				var runningPods []*pod.Builder
-
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return listErr
 					}
-				}
 
-				nodeNames := make(map[string]bool)
+					nodeNames := make(map[string]bool)
 
-				for _, p := range runningPods {
-					Expect(p.Object.Spec.NodeName).ToNot(BeEmpty(),
-						"Pod %s has not been assigned to a node", p.Object.Name)
-					nodeNames[p.Object.Spec.NodeName] = true
-				}
+					for _, p := range sbrPods {
+						if p.Object.Status.Phase != corev1.PodRunning || p.Object.DeletionTimestamp != nil {
+							continue
+						}
 
-				Expect(len(nodeNames)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"SBR pods must run on different nodes for HA, but found pods on %d unique node(s)",
-					len(nodeNames))
+						if p.Object.Spec.NodeName == "" {
+							return fmt.Errorf("pod %s has not been assigned to a node", p.Object.Name)
+						}
+
+						nodeNames[p.Object.Spec.NodeName] = true
+					}
+
+					if len(nodeNames) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf("expected pods on %d unique node(s) for HA, found %d",
+							sbrparams.ExpectedReplicas, len(nodeNames))
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
+					"SBR pods must run on different nodes for HA")
 			})
 
 		It("Verify SBR container runs as non-root user",
@@ -227,18 +251,28 @@ var _ = Describe(
 					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to get SBR controller pods")
-
 				var runningPods []*pod.Builder
 
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return fmt.Errorf("failed to get SBR controller pods: %w", listErr)
 					}
-				}
 
-				Expect(len(runningPods)).To(BeNumerically(">", 0),
+					runningPods = nil
+
+					for _, p := range sbrPods {
+						if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
+							runningPods = append(runningPods, p)
+						}
+					}
+
+					if len(runningPods) == 0 {
+						return fmt.Errorf("no running SBR controller pods found")
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"At least one running SBR controller pod should be found")
 
 				var errorMessages []string

@@ -3,6 +3,9 @@ package sbrparams
 import "time"
 
 const (
+	// DefaultPollInterval is the polling interval used with Eventually calls.
+	DefaultPollInterval = 5 * time.Second
+
 	// SBRCConsistentlyDuration is how long negative tests observe the controller for unexpected DaemonSets.
 	SBRCConsistentlyDuration = 30 * time.Second
 
