@@ -50,8 +50,7 @@ var _ = Describe(
 		It("Verify Storage-Based Remediation Operator pod is running",
 			reportxml.ID("89232"), func() {
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
 				_, err := pod.WaitForAllPodsInNamespaceRunning(
@@ -151,8 +150,7 @@ var _ = Describe(
 				By("Verifying pods run on different nodes")
 
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
 				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
@@ -184,8 +182,7 @@ var _ = Describe(
 				By("Getting SBR controller pod names")
 
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
 				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)

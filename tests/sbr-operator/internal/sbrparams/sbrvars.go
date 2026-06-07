@@ -19,6 +19,10 @@ var (
 	// OperatorControllerPodLabel is how the controller pod is labeled.
 	OperatorControllerPodLabel = "sbr-operator"
 
+	// OperatorControllerPodLabelSelector selects only controller-manager pods, excluding device-init and agent pods
+	// that share the app.kubernetes.io/name label.
+	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel + ",control-plane=controller-manager"
+
 	// ReporterNamespacesToDump tells the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{
 		medik8sparams.OperatorNs: medik8sparams.OperatorNs,
