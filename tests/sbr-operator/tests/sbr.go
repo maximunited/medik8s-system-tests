@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -473,15 +472,13 @@ var _ = Describe(
 
 				By("Verifying controller does not deploy a new DaemonSet for the invalid SBRC")
 
-				Consistently(func() int {
+				Consistently(func(g Gomega) int {
 					dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 						context.TODO(), metav1.ListOptions{})
-					if listErr != nil {
-						return baselineCount
-					}
+					g.Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets while polling")
 
 					return len(dsList.Items)
-				}, 30*time.Second, 5*time.Second).Should(Equal(baselineCount),
+				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Equal(baselineCount),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 	})

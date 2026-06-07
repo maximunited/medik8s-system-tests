@@ -1,6 +1,14 @@
 package sbrparams
 
+import "time"
+
 const (
+	// SBRCConsistentlyDuration is how long negative tests observe the controller for unexpected DaemonSets.
+	SBRCConsistentlyDuration = 30 * time.Second
+
+	// SBRCConsistentlyPollInterval is the polling interval used with SBRCConsistentlyDuration.
+	SBRCConsistentlyPollInterval = 5 * time.Second
+
 	// Label represents SBR operator label that can be used for test cases selection.
 	Label = "sbr"
 
