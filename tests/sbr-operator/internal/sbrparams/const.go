@@ -3,11 +3,14 @@ package sbrparams
 import "time"
 
 const (
-	// SBRCConsistentlyDuration is how long negative tests observe the controller for unexpected DaemonSets.
-	SBRCConsistentlyDuration = 30 * time.Second
+	// DefaultPollInterval is the polling interval used with Eventually calls.
+	DefaultPollInterval = 5 * time.Second
 
-	// SBRCConsistentlyPollInterval is the polling interval used with SBRCConsistentlyDuration.
-	SBRCConsistentlyPollInterval = 5 * time.Second
+	// NoNewDaemonSetCheckDuration is how long the controller is observed to confirm no unexpected DaemonSet is created.
+	NoNewDaemonSetCheckDuration = 30 * time.Second
+
+	// NoNewDaemonSetCheckInterval is the polling interval used with NoNewDaemonSetCheckDuration.
+	NoNewDaemonSetCheckInterval = 5 * time.Second
 
 	// Label represents SBR operator label that can be used for test cases selection.
 	Label = "sbr"
@@ -36,10 +39,10 @@ const (
 	// SBRCMaxConsecutiveFailuresMax is the maximum allowed value for maxConsecutiveFailures (CRD schema enforced).
 	SBRCMaxConsecutiveFailuresMax = 32
 
-	// SBRCInvalidTestName is the name used for short-lived invalid SBRC CRs in negative tests.
+	// SBRCInvalidTestName is the name used for short-lived invalid StorageBasedRemediationConfig CRs in negative tests.
 	SBRCInvalidTestName = "test-invalid-sbrc"
 
-	// SBRCControllerTestName is the name used for SBRC CRs testing controller-layer validation.
+	// SBRCControllerTestName is the name used for StorageBasedRemediationConfig CRs testing controller-layer validation.
 	SBRCControllerTestName = "test-controller-invalid-sbrc"
 
 	// SBRCWatchdogTestName is the name used for SBRC CRs testing invalid watchdog path handling.

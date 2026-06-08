@@ -149,7 +149,7 @@ var _ = Describe(
 					annotationValue, exists := sbrCSV.Object.Annotations[annotationKey]
 					if !exists {
 						annotationErrors = append(annotationErrors,
-							fmt.Sprintf("annotation %q is missing", annotationKey))
+							fmt.Sprintf("required annotation %q is missing", annotationKey))
 
 						continue
 					}
@@ -503,7 +503,7 @@ var _ = Describe(
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
-				labels.ComponentWebhook,
+				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
 				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range field values")
@@ -615,7 +615,7 @@ var _ = Describe(
 					}
 
 					return nil
-				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Succeed(),
+				}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 
@@ -684,7 +684,7 @@ var _ = Describe(
 
 					// NOTE: both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body,
 					// not between iterations). Any DS created by iteration 1's watchdog SBRC *after*
-					// its SBRCConsistentlyDuration window is evaluated here with iteration 2's
+					// its NoNewDaemonSetCheckDuration window is evaluated here with iteration 2's
 					// requireNoDaemonSet:false policy. If that DS has DesiredNumberScheduled==0 it
 					// passes silently — a known limitation of the shared observation window. In
 					// practice the watchdog SBRC has no nodeSelector, so any DS it creates would
@@ -715,7 +715,7 @@ var _ = Describe(
 						}
 
 						return nil
-					}, sbrparams.SBRCConsistentlyDuration, 5*time.Second).Should(Succeed(),
+					}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
 						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
 
 					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))

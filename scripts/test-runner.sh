@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-GOPATH="${GOPATH:-~/go}"
-PATH=$PATH:$GOPATH/bin
+GINKGO="${GINKGO:-ginkgo}"
 TEST_DIR="./tests"
 
 # Check that ECO_TEST_FEATURES environment variable has been set
@@ -39,7 +38,7 @@ fi
 
 
 # Build ginkgo command
-cmd="ginkgo -timeout=24h --keep-going --require-suite -r"
+cmd="${GINKGO} -timeout=24h --keep-going --require-suite -r"
 
 if [[ "${ECO_TEST_VERBOSE}" == "true" ]]; then
     cmd+=" -vv"

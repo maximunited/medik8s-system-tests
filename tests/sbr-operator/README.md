@@ -68,3 +68,34 @@ or pod level). Only checks the `manager` container, not sidecars.
 - **Environment**: Connected or disconnected
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="non-root user" ./tests/sbr-operator/...`
 - **Pass criteria**: All security context fields match restricted profile
+
+### 5. Verify SBR Uses Correct API and OLM Naming (Polarion 88822)
+
+Validates that the active SBR CSV display name uses "Storage-Based Remediation"
+(not the legacy "SBD" branding) and that all owned CRDs are registered under the
+correct API group `storage-based-remediation.medik8s.io`.
+
+- **Operators**: SBR v0.3.0
+- **Cluster**: Any topology
+- **Storage**: None
+- **Environment**: Connected or disconnected
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="correct API and OLM naming" ./tests/sbr-operator/...`
+- **Pass criteria**: CSV display name contains "Storage-Based Remediation", does not contain "SBD", all CRD API groups match expected value
+
+### 6. Verify StorageBasedRemediationConfig CRD Schema Rejects Invalid Values (Polarion 88881)
+
+Validates two layers of SBRC validation:
+
+**Layer 1 (CRD OpenAPI schema)**: The API server rejects SBRC resources with
+out-of-range field values for `sbrTimeoutSeconds` and `maxConsecutiveFailures`.
+
+**Layer 2 (Controller validation)**: An SBRC referencing a non-existent
+StorageClass is admitted by the API server but the controller does not schedule
+a DaemonSet for it.
+
+- **Operators**: SBR v0.3.0
+- **Cluster**: Any topology
+- **Storage**: None
+- **Environment**: Connected or disconnected
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="StorageBasedRemediationConfig" ./tests/sbr-operator/...`
+- **Pass criteria**: Out-of-range SBRC fields rejected; invalid-StorageClass SBRC admitted but no DaemonSet created
