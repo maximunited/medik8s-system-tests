@@ -494,6 +494,30 @@ var _ = Describe(
 					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
 				}
 			}
+
+			By("Waiting for stale DaemonSets to be garbage-collected before snapshotting baseline")
+
+			staleNamesSet := make(map[string]bool, len(staleNames))
+			for _, n := range staleNames {
+				staleNamesSet[n] = true
+			}
+
+			Eventually(func() error {
+				dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+					context.TODO(), metav1.ListOptions{})
+				if listErr != nil {
+					return listErr
+				}
+
+				for _, ds := range dsList.Items {
+					if staleNamesSet[ds.Name] {
+						return fmt.Errorf("stale DaemonSet %q still present; waiting for GC", ds.Name)
+					}
+				}
+
+				return nil
+			}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				"Stale DaemonSets from prior runs must be GC'd before snapshotting baseline")
 		})
 
 		It("Verify StorageBasedRemediationConfig CR validation rejects invalid field values",
@@ -520,6 +544,8 @@ var _ = Describe(
 
 				var schemaErrors []string
 
+				// DeferCleanup so schema errors are reported even when Layer 2 also fails —
+				// a direct Fail() would abort the It block before Layer 2 runs.
 				DeferCleanup(func() {
 					if len(schemaErrors) == 0 {
 						return
@@ -572,7 +598,6 @@ var _ = Describe(
 								invalidCase.field, invalidCase.value, createErr))
 					}
 				}
-
 
 				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
 

@@ -71,5 +71,4 @@ const (
 
 	// CSVNamePattern is the substring used to match the SBR operator ClusterServiceVersion by name.
 	CSVNamePattern = "storage-based-remediation"
-
 )
