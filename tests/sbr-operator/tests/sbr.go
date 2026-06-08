@@ -634,7 +634,7 @@ var _ = Describe(
 					}
 
 					return nil
-				}, sbrparams.SBRCConsistentlyDuration, sbrparams.SBRCConsistentlyPollInterval).Should(Succeed(),
+				}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
 					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 	})
