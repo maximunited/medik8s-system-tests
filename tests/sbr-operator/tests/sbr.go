@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,12 +15,15 @@ import (
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/pod"
 	"github.com/rh-ecosystem-edge/eco-goinfra/pkg/reportxml"
 
+	"github.com/medik8s/system-tests/tests/internal/labels"
 	. "github.com/medik8s/system-tests/tests/internal/medik8sinittools"
 	"github.com/medik8s/system-tests/tests/internal/medik8sparams"
 	"github.com/medik8s/system-tests/tests/sbr-operator/internal/sbrparams"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var _ = Describe(
@@ -44,10 +48,16 @@ var _ = Describe(
 		})
 
 		It("Verify Storage-Based Remediation Operator pod is running",
-			reportxml.ID("89232"), func() {
+			reportxml.ID("89232"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
 				_, err := pod.WaitForAllPodsInNamespaceRunning(
@@ -84,7 +94,14 @@ var _ = Describe(
 			})
 
 		It("Verify SBR CSV has required annotations",
-			reportxml.ID("89233"), func() {
+			reportxml.ID("89233"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentOLM,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR ClusterServiceVersion")
 
 				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
@@ -112,17 +129,43 @@ var _ = Describe(
 
 				Expect(sbrCSV.Object.Annotations).ToNot(BeNil(), "CSV annotations should not be nil")
 
+				var annotationErrors []string
+
 				for annotationKey, expectedValue := range sbrparams.RequiredAnnotations {
 					annotationValue, exists := sbrCSV.Object.Annotations[annotationKey]
-					Expect(exists).To(BeTrue(),
-						"Required annotation %q should exist on SBR CSV", annotationKey)
-					Expect(annotationValue).To(Equal(expectedValue),
-						"Annotation %q should have value %q", annotationKey, expectedValue)
+					if !exists {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("required annotation %q is missing", annotationKey))
+
+						continue
+					}
+
+					if annotationValue != expectedValue {
+						annotationErrors = append(annotationErrors,
+							fmt.Sprintf("annotation %q: expected %q, got %q",
+								annotationKey, expectedValue, annotationValue))
+					}
+				}
+
+				if len(annotationErrors) > 0 {
+					errMsg := "SBR CSV annotation validation failures:\n"
+					for _, msg := range annotationErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
 				}
 			})
 
 		It("Verify SBR controller manager has correct number of replicas",
-			reportxml.ID("89234"), func() {
+			reportxml.ID("89234"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Checking cluster topology")
 
 				infraConfig, err := infrastructure.Pull(APIClient)
@@ -132,70 +175,104 @@ var _ = Describe(
 					Skip("Skipping test on SNO (Single Node OpenShift) cluster")
 				}
 
-				By("Checking deployment replicas")
-				Expect(sbrDeployment.Object.Spec.Replicas).ToNot(BeNil(),
-					"Deployment replicas should not be nil")
-				Expect(*sbrDeployment.Object.Spec.Replicas).To(Equal(sbrparams.ExpectedReplicas),
-					"Expected %d replica(s), found %d",
-					sbrparams.ExpectedReplicas, *sbrDeployment.Object.Spec.Replicas)
+				By("Verifying deployment spec and ready replicas")
+				Eventually(func() error {
+					liveDeploy, pullErr := deployment.Pull(APIClient, sbrparams.OperatorDeploymentName, medik8sparams.OperatorNs)
+					if pullErr != nil {
+						return pullErr
+					}
 
-				By("Verifying ready replicas")
-				Expect(sbrDeployment.Object.Status.ReadyReplicas).To(Equal(sbrparams.ExpectedReplicas),
-					"Expected %d ready replica(s), found %d",
-					sbrparams.ExpectedReplicas, sbrDeployment.Object.Status.ReadyReplicas)
+					if liveDeploy.Object.Spec.Replicas == nil {
+						return fmt.Errorf("deployment Spec.Replicas is nil")
+					}
+
+					if *liveDeploy.Object.Spec.Replicas != sbrparams.ExpectedReplicas {
+						return fmt.Errorf("expected %d desired replica(s), found %d",
+							sbrparams.ExpectedReplicas, *liveDeploy.Object.Spec.Replicas)
+					}
+
+					if liveDeploy.Object.Status.ReadyReplicas != sbrparams.ExpectedReplicas {
+						return fmt.Errorf("expected %d ready replica(s), found %d",
+							sbrparams.ExpectedReplicas, liveDeploy.Object.Status.ReadyReplicas)
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
+					"deployment should have %d ready replica(s)", sbrparams.ExpectedReplicas)
 
 				By("Verifying pods run on different nodes")
 
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
 
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR pods")
-
-				var runningPods []*pod.Builder
-
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return listErr
 					}
-				}
 
-				nodeNames := make(map[string]bool)
+					nodeNames := make(map[string]bool)
 
-				for _, p := range runningPods {
-					Expect(p.Object.Spec.NodeName).ToNot(BeEmpty(),
-						"Pod %s has not been assigned to a node", p.Object.Name)
-					nodeNames[p.Object.Spec.NodeName] = true
-				}
+					for _, pod := range sbrPods {
+						if pod.Object.Status.Phase != corev1.PodRunning || pod.Object.DeletionTimestamp != nil {
+							continue
+						}
 
-				Expect(len(nodeNames)).To(Equal(int(sbrparams.ExpectedReplicas)),
-					"SBR pods must run on different nodes for HA, but found pods on %d unique node(s)",
-					len(nodeNames))
+						if pod.Object.Spec.NodeName == "" {
+							return fmt.Errorf("pod %s has not been assigned to a node", pod.Object.Name)
+						}
+
+						nodeNames[pod.Object.Spec.NodeName] = true
+					}
+
+					if len(nodeNames) != int(sbrparams.ExpectedReplicas) {
+						return fmt.Errorf("expected pods on %d unique node(s) for HA, found %d",
+							sbrparams.ExpectedReplicas, len(nodeNames))
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
+					"SBR pods must run on different nodes for HA")
 			})
 
 		It("Verify SBR container runs as non-root user",
-			reportxml.ID("89235"), func() {
+			reportxml.ID("89235"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
 				By("Getting SBR controller pod names")
 
 				listOptions := metav1.ListOptions{
-					LabelSelector: fmt.Sprintf("app.kubernetes.io/name=%s",
-						sbrparams.OperatorControllerPodLabel),
+					LabelSelector: sbrparams.OperatorControllerPodLabelSelector,
 				}
-
-				sbrPods, err := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
-				Expect(err).ToNot(HaveOccurred(), "Failed to get SBR controller pods")
 
 				var runningPods []*pod.Builder
 
-				for _, p := range sbrPods {
-					if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
-						runningPods = append(runningPods, p)
+				Eventually(func() error {
+					sbrPods, listErr := pod.List(APIClient, medik8sparams.OperatorNs, listOptions)
+					if listErr != nil {
+						return fmt.Errorf("failed to get SBR controller pods: %w", listErr)
 					}
-				}
 
-				Expect(len(runningPods)).To(BeNumerically(">", 0),
+					runningPods = nil
+
+					for _, p := range sbrPods {
+						if p.Object.Status.Phase == corev1.PodRunning && p.Object.DeletionTimestamp == nil {
+							runningPods = append(runningPods, p)
+						}
+					}
+
+					if len(runningPods) == 0 {
+						return fmt.Errorf("no running SBR controller pods found")
+					}
+
+					return nil
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"At least one running SBR controller pod should be found")
 
 				var errorMessages []string
@@ -308,5 +385,256 @@ var _ = Describe(
 
 					Fail(errMsg)
 				}
+			})
+
+		It("Verify SBR uses correct API and OLM naming",
+			reportxml.ID("88822"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentOLM,
+				labels.FrequencyPresubmit,
+			), func() {
+				By("Getting active SBR ClusterServiceVersion")
+
+				sbrCSVs, err := olm.ListClusterServiceVersionWithNamePattern(
+					APIClient, "storage-based-remediation", medik8sparams.OperatorNs)
+				Expect(err).ToNot(HaveOccurred(), "Failed to list SBR CSVs")
+				Expect(len(sbrCSVs)).To(BeNumerically(">", 0),
+					"At least one SBR CSV should be found in namespace %s", medik8sparams.OperatorNs)
+
+				var sbrCSV *olm.ClusterServiceVersionBuilder
+
+				for _, csv := range sbrCSVs {
+					phase, phaseErr := csv.GetPhase()
+					if phaseErr == nil && phase == oplmV1alpha1.CSVPhaseSucceeded {
+						sbrCSV = csv
+
+						break
+					}
+				}
+
+				Expect(sbrCSV).ToNot(BeNil(), "No SBR CSV in Succeeded phase found")
+
+				By("Verifying CSV display name uses Storage-Based Remediation naming (not SBD)")
+				Expect(sbrCSV.Object.Spec.DisplayName).To(ContainSubstring("Storage-Based Remediation"),
+					"CSV display name should contain 'Storage-Based Remediation' (not 'SBD'), got: %q",
+					sbrCSV.Object.Spec.DisplayName)
+				Expect(sbrCSV.Object.Spec.DisplayName).ToNot(ContainSubstring("SBD"),
+					"CSV display name should not use 'SBD' naming, got: %q",
+					sbrCSV.Object.Spec.DisplayName)
+
+				By(fmt.Sprintf("Verifying all owned CRDs use API group %s", sbrparams.CRDGroup))
+
+				ownedCRDs := sbrCSV.Object.Spec.CustomResourceDefinitions.Owned
+				Expect(ownedCRDs).ToNot(BeEmpty(), "CSV should declare at least one owned CRD")
+
+				for _, expectedKind := range sbrparams.ExpectedCRDKinds {
+					By(fmt.Sprintf("Checking owned CRD for kind %s", expectedKind))
+
+					var matchedCRD *oplmV1alpha1.CRDDescription
+
+					for i := range ownedCRDs {
+						if ownedCRDs[i].Kind == expectedKind {
+							matchedCRD = &ownedCRDs[i]
+
+							break
+						}
+					}
+
+					Expect(matchedCRD).ToNot(BeNil(),
+						"CSV should own a CRD with kind %s", expectedKind)
+					Expect(matchedCRD.Name).To(ContainSubstring(sbrparams.CRDGroup),
+						"CRD %s name %q should include API group %s", expectedKind, matchedCRD.Name, sbrparams.CRDGroup)
+					Expect(matchedCRD.Version).To(Equal(sbrparams.CRDVersion),
+						"CRD %s should be at version %s", expectedKind, sbrparams.CRDVersion)
+				}
+			})
+	})
+
+func snapshotDaemonSetNames() map[string]bool {
+	dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+		context.TODO(), metav1.ListOptions{})
+	Expect(listErr).ToNot(HaveOccurred(), "Failed to list DaemonSets in operator namespace")
+
+	names := make(map[string]bool, len(dsList.Items))
+	for _, ds := range dsList.Items {
+		names[ds.Name] = true
+	}
+
+	return names
+}
+
+func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
+			"kind":       "StorageBasedRemediationConfig",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": medik8sparams.OperatorNs,
+			},
+			"spec": spec,
+		},
+	}
+}
+
+var _ = Describe(
+	"SBR Negative Tests",
+	Ordered,
+	ContinueOnFailure,
+	Label(sbrparams.Label), func() {
+		BeforeAll(func() {
+			By("Cleaning up any leftover test SBRCs from previous runs")
+
+			staleNames := []string{
+				sbrparams.SBRCControllerTestName,
+				fmt.Sprintf("%s-below-min-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-timeout", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-below-min-failures", sbrparams.SBRCInvalidTestName),
+				fmt.Sprintf("%s-above-max-failures", sbrparams.SBRCInvalidTestName),
+			}
+
+			for _, name := range staleNames {
+				stale := buildSBRC(name, map[string]interface{}{})
+				deleteErr := APIClient.Delete(context.TODO(), stale)
+
+				if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
+				}
+			}
+		})
+
+		It("Verify StorageBasedRemediationConfig CRD schema rejects invalid field values",
+			reportxml.ID("88881"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyNightly,
+			), func() {
+				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range field values")
+
+				type invalidSBRCCase struct {
+					name  string
+					field string
+					value int64
+				}
+
+				var schemaErrors []string
+
+				// DeferCleanup so schema errors are reported even if subsequent assertions also fail.
+				DeferCleanup(func() {
+					if len(schemaErrors) == 0 {
+						return
+					}
+
+					errMsg := "CRD schema validation failures:\n"
+					for _, msg := range schemaErrors {
+						errMsg += fmt.Sprintf("- %s\n", msg)
+					}
+
+					Fail(errMsg)
+				})
+
+				for _, invalidCase := range []invalidSBRCCase{
+					{"below-min-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMin - 1},
+					{"above-max-timeout", "sbrTimeoutSeconds", sbrparams.SBRCTimeoutSecondsMax + 1},
+					{"below-min-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMin - 1},
+					{"above-max-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMax + 1},
+				} {
+					By(fmt.Sprintf("Attempting to create SBRC with %s=%d (expect rejection)",
+						invalidCase.field, invalidCase.value))
+
+					invalidSBRC := buildSBRC(
+						fmt.Sprintf("%s-%s", sbrparams.SBRCInvalidTestName, invalidCase.name),
+						map[string]interface{}{invalidCase.field: invalidCase.value},
+					)
+
+					createErr := APIClient.Create(context.TODO(), invalidSBRC)
+					if createErr == nil {
+						invalidSBRCRef := invalidSBRC.DeepCopy()
+
+						DeferCleanup(func() {
+							deleteErr := APIClient.Delete(context.TODO(), invalidSBRCRef)
+							if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+								GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted SBRC %s: %v",
+									invalidSBRCRef.GetName(), deleteErr)
+							}
+						})
+
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("SBRC with %s=%d was unexpectedly admitted by the API server",
+								invalidCase.field, invalidCase.value))
+
+						continue
+					}
+
+					if !k8serrors.IsInvalid(createErr) && !k8serrors.IsBadRequest(createErr) {
+						schemaErrors = append(schemaErrors,
+							fmt.Sprintf("expected Invalid or BadRequest error for %s=%d, got: %v",
+								invalidCase.field, invalidCase.value, createErr))
+					}
+				}
+			})
+
+		It("Verify StorageBasedRemediationConfig controller does not schedule DaemonSet for invalid SBRC",
+			reportxml.ID("88881"),
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierAcceptance,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyNightly,
+			), func() {
+				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
+
+				By("Recording baseline DaemonSet names before creating the invalid SBRC")
+
+				baselineDSNames := snapshotDaemonSetNames()
+
+				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
+					map[string]interface{}{
+						"sharedStorageClass": "nonexistent-storage-class",
+					})
+
+				err := APIClient.Create(context.TODO(), sbrc)
+				Expect(err).ToNot(HaveOccurred(),
+					"SBRC with invalid StorageClass reference should be admitted by API server")
+
+				sbrcRef := sbrc.DeepCopy()
+
+				DeferCleanup(func() {
+					By("Cleaning up controller-layer test SBRC")
+
+					deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
+					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+							sbrparams.SBRCControllerTestName, deleteErr)
+					}
+				})
+
+				By("Verifying controller does not deploy a new DaemonSet for the invalid SBRC")
+
+				Consistently(func() error {
+					dsList, dsListErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
+						context.TODO(), metav1.ListOptions{})
+					if dsListErr != nil {
+						return dsListErr
+					}
+
+					for _, ds := range dsList.Items {
+						if !baselineDSNames[ds.Name] {
+							return fmt.Errorf(
+								"unexpected new DaemonSet %q appeared for SBRC with non-existent StorageClass",
+								ds.Name)
+						}
+					}
+
+					return nil
+				}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
+					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
 			})
 	})

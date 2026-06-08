@@ -19,6 +19,11 @@ var (
 	// OperatorControllerPodLabel is how the controller pod is labeled.
 	OperatorControllerPodLabel = "sbr-operator"
 
+	// OperatorControllerPodLabelSelector selects only controller-manager pods, excluding device-init and agent pods
+	// that share the app.kubernetes.io/name label.
+	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel +
+		",control-plane=controller-manager"
+
 	// ReporterNamespacesToDump tells the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{
 		medik8sparams.OperatorNs: medik8sparams.OperatorNs,
@@ -30,13 +35,17 @@ var (
 	// ReporterCRDsToDump tells the reporter what CRs to dump.
 	ReporterCRDsToDump = []k8sreporter.CRData{
 		{Cr: &corev1.PodList{}},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationList")},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationConfigList")},
-		{Cr: newUnstructuredList("storage-based-remediation.medik8s.io", "v1alpha1",
-			"StorageBasedRemediationTemplateList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationConfigList")},
+		{Cr: newUnstructuredList(CRDGroup, CRDVersion, "StorageBasedRemediationTemplateList")},
 		{Cr: &coordinationv1.LeaseList{}, Namespace: &operatorNs},
+	}
+
+	// ExpectedCRDKinds lists the Kubernetes kinds for all CRDs owned by the SBR operator.
+	ExpectedCRDKinds = []string{
+		"StorageBasedRemediation",
+		"StorageBasedRemediationConfig",
+		"StorageBasedRemediationTemplate",
 	}
 
 	// RequiredAnnotations defines the required annotations and expected values for SBR CSV.
