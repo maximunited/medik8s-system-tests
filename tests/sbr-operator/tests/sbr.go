@@ -214,16 +214,16 @@ var _ = Describe(
 
 					nodeNames := make(map[string]bool)
 
-					for _, p := range sbrPods {
-						if p.Object.Status.Phase != corev1.PodRunning || p.Object.DeletionTimestamp != nil {
+					for _, pod := range sbrPods {
+						if pod.Object.Status.Phase != corev1.PodRunning || pod.Object.DeletionTimestamp != nil {
 							continue
 						}
 
-						if p.Object.Spec.NodeName == "" {
-							return fmt.Errorf("pod %s has not been assigned to a node", p.Object.Name)
+						if pod.Object.Spec.NodeName == "" {
+							return fmt.Errorf("pod %s has not been assigned to a node", pod.Object.Name)
 						}
 
-						nodeNames[p.Object.Spec.NodeName] = true
+						nodeNames[pod.Object.Spec.NodeName] = true
 					}
 
 					if len(nodeNames) != int(sbrparams.ExpectedReplicas) {
