@@ -21,7 +21,8 @@ var (
 
 	// OperatorControllerPodLabelSelector selects only controller-manager pods, excluding device-init and agent pods
 	// that share the app.kubernetes.io/name label.
-	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel + ",control-plane=controller-manager"
+	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel +
+		",control-plane=controller-manager"
 
 	// ReporterNamespacesToDump tells the reporter from where to collect logs.
 	ReporterNamespacesToDump = map[string]string{

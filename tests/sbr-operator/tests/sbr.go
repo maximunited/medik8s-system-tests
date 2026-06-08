@@ -512,7 +512,7 @@ var _ = Describe(
 				labels.DisruptionNonDestructive,
 				labels.TierAcceptance,
 				labels.PlatformAny,
-				labels.ComponentWebhook,
+				labels.ComponentController,
 				labels.FrequencyNightly,
 			), func() {
 				By("Layer 1: CRD OpenAPI schema — API server rejects out-of-range field values")
