@@ -84,12 +84,12 @@ correct API group `storage-based-remediation.medik8s.io`.
 
 ### 6. Verify StorageBasedRemediationConfig CRD Schema Rejects Invalid Values (Polarion 88881)
 
-Validates two layers of SBRC validation:
+Validates two layers of StorageBasedRemediationConfig validation:
 
-**Layer 1 (CRD OpenAPI schema)**: The API server rejects SBRC resources with
+**Layer 1 (CRD OpenAPI schema)**: The API server rejects StorageBasedRemediationConfig resources with
 out-of-range field values for `sbrTimeoutSeconds` and `maxConsecutiveFailures`.
 
-**Layer 2 (Controller validation)**: An SBRC referencing a non-existent
+**Layer 2 (Controller validation)**: A StorageBasedRemediationConfig referencing a non-existent
 StorageClass is admitted by the API server but the controller does not schedule
 a DaemonSet for it.
 
@@ -98,18 +98,18 @@ a DaemonSet for it.
 - **Storage**: None
 - **Environment**: Connected or disconnected
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="StorageBasedRemediationConfig" ./tests/sbr-operator/...`
-- **Pass criteria**: Out-of-range SBRC fields rejected; invalid-StorageClass SBRC admitted but no DaemonSet created
+- **Pass criteria**: Out-of-range StorageBasedRemediationConfig fields rejected; invalid-StorageClass StorageBasedRemediationConfig admitted but no DaemonSet created
 
-### 7. Verify SBRC Controller Handles Invalid Inputs Without Scheduling Agent Pods (Polarion 88741)
+### 7. Verify StorageBasedRemediationConfig Controller Handles Invalid Inputs Without Scheduling Agent Pods (Polarion 88741)
 
 Validates that the SBR controller does not schedule agent DaemonSets when
 `StorageBasedRemediationConfig` resources specify inputs the controller cannot
 act on:
 
-- **Invalid watchdog path**: SBRC with a non-existent watchdog device path
+- **Invalid watchdog path**: StorageBasedRemediationConfig with a non-existent watchdog device path
   (`/dev/sbr-test-nonexistent-watchdog`) is admitted by the API server but the
   controller schedules no DaemonSet.
-- **Non-matching nodeSelector**: SBRC with a nodeSelector that matches no cluster
+- **Non-matching nodeSelector**: StorageBasedRemediationConfig with a nodeSelector that matches no cluster
   nodes is admitted and may produce a DaemonSet, but `DesiredNumberScheduled`
   must remain 0 for the duration of the observation window.
 
@@ -118,4 +118,4 @@ act on:
 - **Storage**: None
 - **Environment**: Connected or disconnected
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="invalid watchdog path and non-matching nodeSelector" ./tests/sbr-operator/...`
-- **Pass criteria**: No agent pods scheduled for either invalid SBRC input; SBRCs remain present after controller reconciliation
+- **Pass criteria**: No agent pods scheduled for either invalid StorageBasedRemediationConfig input; StorageBasedRemediationConfig CRs remain present after controller reconciliation
