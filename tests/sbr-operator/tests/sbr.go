@@ -501,7 +501,7 @@ var _ = Describe(
 
 				deleteErr := APIClient.Delete(context.TODO(), staleRef)
 				if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-					GinkgoT().Logf("Warning: pre-test cleanup of stale SBRC %s failed: %v", name, deleteErr)
+					GinkgoT().Logf("Warning: pre-test cleanup of stale StorageBasedRemediationConfig %s failed: %v", name, deleteErr)
 				}
 			}
 
@@ -548,7 +548,7 @@ var _ = Describe(
 					value int64
 				}
 
-				By("Recording baseline DaemonSet names before any SBRC is created")
+				By("Recording baseline DaemonSet names before any StorageBasedRemediationConfig is created")
 
 				baselineDSNames := snapshotDaemonSetNames()
 
@@ -575,7 +575,7 @@ var _ = Describe(
 					{"below-min-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMin - 1},
 					{"above-max-failures", "maxConsecutiveFailures", sbrparams.SBRCMaxConsecutiveFailuresMax + 1},
 				} {
-					By(fmt.Sprintf("Attempting to create SBRC with %s=%d (expect rejection)",
+					By(fmt.Sprintf("Attempting to create StorageBasedRemediationConfig with %s=%d (expect rejection)",
 						invalidCase.field, invalidCase.value))
 
 					invalidSBRC := buildSBRC(
@@ -590,13 +590,13 @@ var _ = Describe(
 						DeferCleanup(func() {
 							deleteErr := APIClient.Delete(context.TODO(), invalidSBRCRef)
 							if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-								GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted SBRC %s: %v",
+								GinkgoT().Logf("Warning: failed to delete unexpectedly-admitted StorageBasedRemediationConfig %s: %v",
 									invalidSBRCRef.GetName(), deleteErr)
 							}
 						})
 
 						schemaErrors = append(schemaErrors,
-							fmt.Sprintf("SBRC with %s=%d was unexpectedly admitted by the API server",
+							fmt.Sprintf("StorageBasedRemediationConfig with %s=%d was unexpectedly admitted by the API server",
 								invalidCase.field, invalidCase.value))
 
 						continue
@@ -609,7 +609,7 @@ var _ = Describe(
 					}
 				}
 
-				By("Layer 2: Controller validation — SBRC with non-existent StorageClass is admitted but DaemonSet is not deployed")
+				By("Layer 2: Controller validation — StorageBasedRemediationConfig with non-existent StorageClass is admitted but DaemonSet is not deployed")
 
 				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
@@ -618,21 +618,21 @@ var _ = Describe(
 
 				err := APIClient.Create(context.TODO(), sbrc)
 				Expect(err).ToNot(HaveOccurred(),
-					"SBRC with invalid StorageClass reference should be admitted by API server")
+					"StorageBasedRemediationConfig with invalid StorageClass reference should be admitted by API server")
 
 				sbrcRef := sbrc.DeepCopy()
 
 				DeferCleanup(func() {
-					By("Cleaning up controller-layer test SBRC")
+					By("Cleaning up controller-layer test StorageBasedRemediationConfig")
 
 					deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
 					if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-						GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+						GinkgoT().Logf("Warning: failed to delete test StorageBasedRemediationConfig %s: %v",
 							sbrparams.SBRCControllerTestName, deleteErr)
 					}
 				})
 
-				By("Verifying controller does not deploy a new DaemonSet for the invalid SBRC")
+				By("Verifying controller does not deploy a new DaemonSet for the invalid StorageBasedRemediationConfig")
 
 				Consistently(func() error {
 					dsList, dsListErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
@@ -644,17 +644,17 @@ var _ = Describe(
 					for _, ds := range dsList.Items {
 						if !baselineDSNames[ds.Name] {
 							return fmt.Errorf(
-								"unexpected new DaemonSet %q appeared for SBRC with non-existent StorageClass",
+								"unexpected new DaemonSet %q appeared for StorageBasedRemediationConfig with non-existent StorageClass",
 								ds.Name)
 						}
 					}
 
 					return nil
 				}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
-					"No new DaemonSet should appear for an SBRC with a non-existent StorageClass")
+					"No new DaemonSet should appear for a StorageBasedRemediationConfig with a non-existent StorageClass")
 			})
 
-		It("Verify SBRC controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
+		It("Verify StorageBasedRemediationConfig controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
 			reportxml.ID("88741"),
 			Label(
 				labels.OperatorSBR,
@@ -695,30 +695,30 @@ var _ = Describe(
 						requireNoDaemonSet: false,
 					},
 				} {
-					By(fmt.Sprintf("Creating SBRC with %s", invalidCase.desc))
+					By(fmt.Sprintf("Creating StorageBasedRemediationConfig with %s", invalidCase.desc))
 
 					sbrc := buildSBRC(invalidCase.name, invalidCase.spec)
 
 					createErr := APIClient.Create(context.TODO(), sbrc)
 					Expect(createErr).ToNot(HaveOccurred(),
-						"SBRC with %s should be admitted by the API server", invalidCase.desc)
+						"StorageBasedRemediationConfig with %s should be admitted by the API server", invalidCase.desc)
 
 					sbrcRef := sbrc.DeepCopy()
 
 					DeferCleanup(func() {
-						By(fmt.Sprintf("Cleaning up test SBRC %s", sbrcRef.GetName()))
+						By(fmt.Sprintf("Cleaning up test StorageBasedRemediationConfig %s", sbrcRef.GetName()))
 
 						deleteErr := APIClient.Delete(context.TODO(), sbrcRef)
 						if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
-							GinkgoT().Logf("Warning: failed to delete test SBRC %s: %v",
+							GinkgoT().Logf("Warning: failed to delete test StorageBasedRemediationConfig %s: %v",
 								sbrcRef.GetName(), deleteErr)
 						}
 					})
 
-					By(fmt.Sprintf("Verifying controller does not schedule agent pods for SBRC with %s", invalidCase.desc))
+					By(fmt.Sprintf("Verifying controller does not schedule agent pods for StorageBasedRemediationConfig with %s", invalidCase.desc))
 
 					// Both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body).
-					// The watchdog SBRC never produces a DaemonSet: the controller exits reconciliation
+					// The watchdog StorageBasedRemediationConfig never produces a DaemonSet: the controller exits reconciliation
 					// early with "no shared storage configured" before reaching buildDaemonSet, so
 					// there is no cross-iteration DS to evaluate.
 					Consistently(func() error {
@@ -734,12 +734,12 @@ var _ = Describe(
 							}
 
 							if invalidCase.requireNoDaemonSet {
-								return fmt.Errorf("new DaemonSet %q must not exist for SBRC with %s",
+								return fmt.Errorf("new DaemonSet %q must not exist for StorageBasedRemediationConfig with %s",
 									daemonSet.Name, invalidCase.desc)
 							}
 
 							if daemonSet.Status.DesiredNumberScheduled > 0 {
-								return fmt.Errorf("new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for SBRC with %s",
+								return fmt.Errorf("new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for StorageBasedRemediationConfig with %s",
 									daemonSet.Name,
 									daemonSet.Status.DesiredNumberScheduled,
 									invalidCase.desc)
@@ -748,9 +748,9 @@ var _ = Describe(
 
 						return nil
 					}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
-						"Controller must not schedule agent pods for SBRC with %s", invalidCase.desc)
+						"Controller must not schedule agent pods for StorageBasedRemediationConfig with %s", invalidCase.desc)
 
-					By(fmt.Sprintf("Verifying SBRC %s still exists after controller reconciliation", invalidCase.name))
+					By(fmt.Sprintf("Verifying StorageBasedRemediationConfig %s still exists after controller reconciliation", invalidCase.name))
 
 					sbrcCheck := &unstructured.Unstructured{}
 					sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
@@ -759,7 +759,7 @@ var _ = Describe(
 						types.NamespacedName{Name: invalidCase.name, Namespace: medik8sparams.OperatorNs},
 						sbrcCheck)
 					Expect(getErr).ToNot(HaveOccurred(),
-						"SBRC %q must still exist after controller reconciliation with %s",
+						"StorageBasedRemediationConfig %q must still exist after controller reconciliation with %s",
 						invalidCase.name, invalidCase.desc)
 				}
 			})
