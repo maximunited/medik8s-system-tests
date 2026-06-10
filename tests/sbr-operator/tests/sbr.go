@@ -93,7 +93,10 @@ var _ = Describe(
 					buf, execErr := debugPod.ExecCommand(
 						[]string{"sh", "-c", "ls /proc/1/root/dev/watchdog* 2>/dev/null || true"})
 
-					_, _ = debugPod.Delete()
+					if _, delErr := debugPod.Delete(); delErr != nil {
+						GinkgoWriter.Printf("Warning: failed to delete watchdog debug pod for node %s: %v\n",
+							nodeName, delErr)
+					}
 
 					if execErr != nil {
 						GinkgoWriter.Printf("Warning: exec failed on node %s: %v\n", nodeName, execErr)
