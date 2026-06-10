@@ -1,6 +1,9 @@
 package sbrparams
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 const (
 	// DefaultPollInterval is the polling interval used with Eventually calls.
@@ -77,3 +80,13 @@ const (
 	// CSVNamePattern is the substring used to match the SBR operator ClusterServiceVersion by name.
 	CSVNamePattern = "storage-based-remediation"
 )
+
+// WatchdogDebugImage is the container image for /dev/watchdog* discovery pods.
+// Must provide sh and ls. Set SBR_WATCHDOG_DEBUG_IMAGE to override (e.g. in disconnected clusters).
+var WatchdogDebugImage = func() string {
+	if img := os.Getenv("SBR_WATCHDOG_DEBUG_IMAGE"); img != "" {
+		return img
+	}
+
+	return "registry.access.redhat.com/ubi9/ubi-minimal:latest"
+}()

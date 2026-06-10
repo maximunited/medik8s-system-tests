@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -26,6 +27,108 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 )
+
+// WatchdogDevicesByNode stores the /dev/watchdog* paths found on each node.
+// Populated by the "SBR Debug — Cluster Watchdog Inventory" suite; readable by subsequent tests.
+var WatchdogDevicesByNode map[string][]string
+
+// watchdogDebugPodName returns a valid pod name for the per-node watchdog discovery pod.
+func watchdogDebugPodName(nodeName string) string {
+	safe := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			return r
+		}
+
+		return '-'
+	}, strings.ToLower(nodeName))
+
+	name := "sbr-wdog-dbg-" + safe
+	if len(name) > 253 {
+		name = name[:253]
+	}
+
+	return name
+}
+
+var _ = Describe(
+	"SBR Debug — Cluster Watchdog Inventory",
+	Ordered,
+	Label(sbrparams.Label), func() {
+		It("Discover /dev/watchdog* devices on all cluster nodes",
+			Label(
+				labels.DisruptionNonDestructive,
+				labels.TierSmoke,
+				labels.PlatformAny,
+				labels.ComponentController,
+				labels.FrequencyPresubmit,
+			), func() {
+				WatchdogDevicesByNode = make(map[string][]string)
+
+				nodeList, err := APIClient.CoreV1Interface.Nodes().List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred(), "Failed to list cluster nodes for watchdog inventory")
+
+				By(fmt.Sprintf("Probing %d node(s) for /dev/watchdog* devices", len(nodeList.Items)))
+
+				for i := range nodeList.Items {
+					nodeName := nodeList.Items[i].Name
+					podName := watchdogDebugPodName(nodeName)
+
+					By(fmt.Sprintf("Creating watchdog discovery pod on node %s", nodeName))
+
+					debugPod, createErr := pod.NewBuilder(
+						APIClient, podName, medik8sparams.OperatorNs, sbrparams.WatchdogDebugImage).
+						DefineOnNode(nodeName).
+						WithHostPid(true).
+						WithPrivilegedFlag().
+						CreateAndWaitUntilRunning(medik8sparams.DefaultTimeout)
+					if createErr != nil {
+						GinkgoWriter.Printf("Warning: could not create watchdog debug pod for node %s: %v\n",
+							nodeName, createErr)
+						WatchdogDevicesByNode[nodeName] = nil
+
+						continue
+					}
+
+					// /proc/1/root is the host's root filesystem inside a hostPID+privileged container.
+					buf, execErr := debugPod.ExecCommand(
+						[]string{"sh", "-c", "ls /proc/1/root/dev/watchdog* 2>/dev/null || true"})
+
+					_, _ = debugPod.Delete()
+
+					if execErr != nil {
+						GinkgoWriter.Printf("Warning: exec failed on node %s: %v\n", nodeName, execErr)
+						WatchdogDevicesByNode[nodeName] = nil
+
+						continue
+					}
+
+					var devices []string
+
+					for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+						line = strings.TrimSpace(line)
+						if line == "" {
+							continue
+						}
+
+						// Strip the /proc/1/root prefix to record the canonical host path.
+						devices = append(devices, strings.TrimPrefix(line, "/proc/1/root"))
+					}
+
+					WatchdogDevicesByNode[nodeName] = devices
+				}
+
+				GinkgoWriter.Println("=== /dev/watchdog* Inventory ===")
+
+				for _, n := range nodeList.Items {
+					devs := WatchdogDevicesByNode[n.Name]
+					if len(devs) == 0 {
+						GinkgoWriter.Printf("  %s: none\n", n.Name)
+					} else {
+						GinkgoWriter.Printf("  %s: %v\n", n.Name, devs)
+					}
+				}
+			})
+	})
 
 func findActiveCSV(csvs []*olm.ClusterServiceVersionBuilder) *olm.ClusterServiceVersionBuilder {
 	for _, csv := range csvs {
