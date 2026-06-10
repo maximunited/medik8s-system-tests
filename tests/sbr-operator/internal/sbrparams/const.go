@@ -66,8 +66,10 @@ const (
 	// OperatorControllerPodLabel is the app label value used to select SBR controller pods.
 	OperatorControllerPodLabel = "sbr-operator"
 
-	// OperatorControllerPodLabelSelector is the label selector string to filter SBR controller pods.
-	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel
+	// OperatorControllerPodLabelSelector is the label selector string to filter SBR controller pods,
+	// excluding device-init and agent pods that share the app.kubernetes.io/name label.
+	OperatorControllerPodLabelSelector = "app.kubernetes.io/name=" + OperatorControllerPodLabel +
+		",control-plane=controller-manager"
 
 	// CSVNamePattern is the substring used to match the SBR operator ClusterServiceVersion by name.
 	CSVNamePattern = "storage-based-remediation"

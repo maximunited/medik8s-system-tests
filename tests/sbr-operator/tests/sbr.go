@@ -3,7 +3,6 @@ package tests
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -120,7 +119,7 @@ var _ = Describe(
 					}
 
 					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"SBR pods did not reach expected running count of %d", expectedCount)
 			})
 
@@ -242,7 +241,7 @@ var _ = Describe(
 					}
 
 					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"SBR deployment did not stabilise at %d ready replicas on distinct nodes",
 					sbrparams.ExpectedReplicas)
 			})
@@ -276,7 +275,7 @@ var _ = Describe(
 					runningPods = running
 
 					return nil
-				}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+				}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 					"At least one running SBR controller pod should be found")
 
 				var errorMessages []string
@@ -516,7 +515,7 @@ var _ = Describe(
 				}
 
 				return nil
-			}, medik8sparams.DefaultTimeout, 5*time.Second).Should(Succeed(),
+			}, medik8sparams.DefaultTimeout, sbrparams.DefaultPollInterval).Should(Succeed(),
 				"Stale DaemonSets from prior runs must be GC'd before snapshotting baseline")
 		})
 
@@ -707,13 +706,10 @@ var _ = Describe(
 
 					By(fmt.Sprintf("Verifying controller does not schedule agent pods for SBRC with %s", invalidCase.desc))
 
-					// NOTE: both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body,
-					// not between iterations). Any DS created by iteration 1's watchdog SBRC *after*
-					// its NoNewDaemonSetCheckDuration window is evaluated here with iteration 2's
-					// requireNoDaemonSet:false policy. If that DS has DesiredNumberScheduled==0 it
-					// passes silently — a known limitation of the shared observation window. In
-					// practice the watchdog SBRC has no nodeSelector, so any DS it creates would
-					// match all nodes (DesiredNumberScheduled>0) and would be caught here.
+					// Both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body).
+					// The watchdog SBRC never produces a DaemonSet: the controller exits reconciliation
+					// early with "no shared storage configured" before reaching buildDaemonSet, so
+					// there is no cross-iteration DS to evaluate.
 					Consistently(func() error {
 						dsList, listErr := APIClient.DaemonSets(medik8sparams.OperatorNs).List(
 							context.TODO(), metav1.ListOptions{})
