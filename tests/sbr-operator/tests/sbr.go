@@ -111,14 +111,14 @@ var _ = Describe(
 						return listErr
 					}
 
-					for _, p := range sbrPods {
-						if p.Object.DeletionTimestamp != nil {
+					for _, sbrPod := range sbrPods {
+						if sbrPod.Object.DeletionTimestamp != nil {
 							continue
 						}
 
-						if p.Object.Status.Phase != corev1.PodRunning {
+						if sbrPod.Object.Status.Phase != corev1.PodRunning {
 							return fmt.Errorf("pod %s is in phase %s, expected Running",
-								p.Object.Name, p.Object.Status.Phase)
+								sbrPod.Object.Name, sbrPod.Object.Status.Phase)
 						}
 					}
 
@@ -609,7 +609,8 @@ var _ = Describe(
 					}
 				}
 
-				By("Layer 2: Controller validation — StorageBasedRemediationConfig with non-existent StorageClass is admitted but DaemonSet is not deployed")
+				By("Layer 2: Controller validation — StorageBasedRemediationConfig with non-existent " +
+					"StorageClass is admitted but DaemonSet is not deployed")
 
 				sbrc := buildSBRC(sbrparams.SBRCControllerTestName,
 					map[string]interface{}{
@@ -654,7 +655,8 @@ var _ = Describe(
 					"No new DaemonSet should appear for a StorageBasedRemediationConfig with a non-existent StorageClass")
 			})
 
-		It("Verify StorageBasedRemediationConfig controller handles invalid watchdog path and non-matching nodeSelector without scheduling agent pods",
+		It("Verify StorageBasedRemediationConfig controller handles invalid watchdog path "+
+			"and non-matching nodeSelector without scheduling agent pods",
 			reportxml.ID("88741"),
 			Label(
 				labels.OperatorSBR,
@@ -715,7 +717,8 @@ var _ = Describe(
 						}
 					})
 
-					By(fmt.Sprintf("Verifying controller does not schedule agent pods for StorageBasedRemediationConfig with %s", invalidCase.desc))
+					By(fmt.Sprintf("Verifying controller does not schedule agent pods for StorageBasedRemediationConfig with %s",
+						invalidCase.desc))
 
 					// Both SBRCs coexist during iteration 2 (DeferCleanup fires after the It body).
 					// The watchdog StorageBasedRemediationConfig never produces a DaemonSet: the controller exits reconciliation
@@ -739,7 +742,8 @@ var _ = Describe(
 							}
 
 							if daemonSet.Status.DesiredNumberScheduled > 0 {
-								return fmt.Errorf("new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for StorageBasedRemediationConfig with %s",
+								return fmt.Errorf(
+									"new DaemonSet %q has %d agent pod(s) scheduled; expected 0 for StorageBasedRemediationConfig with %s",
 									daemonSet.Name,
 									daemonSet.Status.DesiredNumberScheduled,
 									invalidCase.desc)
@@ -750,7 +754,8 @@ var _ = Describe(
 					}, sbrparams.NoNewDaemonSetCheckDuration, sbrparams.NoNewDaemonSetCheckInterval).Should(Succeed(),
 						"Controller must not schedule agent pods for StorageBasedRemediationConfig with %s", invalidCase.desc)
 
-					By(fmt.Sprintf("Verifying StorageBasedRemediationConfig %s still exists after controller reconciliation", invalidCase.name))
+					By(fmt.Sprintf("Verifying StorageBasedRemediationConfig %s still exists after controller reconciliation",
+						invalidCase.name))
 
 					sbrcCheck := &unstructured.Unstructured{}
 					sbrcCheck.SetGroupVersionKind(sbrcRef.GroupVersionKind())
