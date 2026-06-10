@@ -111,6 +111,17 @@ var _ = Describe(
 						return listErr
 					}
 
+					for _, p := range sbrPods {
+						if p.Object.DeletionTimestamp != nil {
+							continue
+						}
+
+						if p.Object.Status.Phase != corev1.PodRunning {
+							return fmt.Errorf("pod %s is in phase %s, expected Running",
+								p.Object.Name, p.Object.Status.Phase)
+						}
+					}
+
 					runningCount := int32(len(filterRunningPods(sbrPods)))
 
 					if runningCount != expectedCount {

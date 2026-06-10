@@ -99,3 +99,23 @@ a DaemonSet for it.
 - **Environment**: Connected or disconnected
 - **Standalone**: `ginkgo --label-filter="sbr" --focus="StorageBasedRemediationConfig" ./tests/sbr-operator/...`
 - **Pass criteria**: Out-of-range SBRC fields rejected; invalid-StorageClass SBRC admitted but no DaemonSet created
+
+### 7. Verify SBRC Controller Handles Invalid Inputs Without Scheduling Agent Pods (Polarion 88741)
+
+Validates that the SBR controller does not schedule agent DaemonSets when
+`StorageBasedRemediationConfig` resources specify inputs the controller cannot
+act on:
+
+- **Invalid watchdog path**: SBRC with a non-existent watchdog device path
+  (`/dev/sbr-test-nonexistent-watchdog`) is admitted by the API server but the
+  controller schedules no DaemonSet.
+- **Non-matching nodeSelector**: SBRC with a nodeSelector that matches no cluster
+  nodes is admitted and may produce a DaemonSet, but `DesiredNumberScheduled`
+  must remain 0 for the duration of the observation window.
+
+- **Operators**: SBR v0.3.0
+- **Cluster**: Any topology
+- **Storage**: None
+- **Environment**: Connected or disconnected
+- **Standalone**: `ginkgo --label-filter="sbr" --focus="invalid watchdog path and non-matching nodeSelector" ./tests/sbr-operator/...`
+- **Pass criteria**: No agent pods scheduled for either invalid SBRC input; SBRCs remain present after controller reconciliation
