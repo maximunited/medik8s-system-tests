@@ -57,3 +57,9 @@ cmd+=" $@ $feature_dirs"   # add user args before feature dirs
 # Execute ginkgo command
 echo $cmd
 eval $cmd
+GINKGO_EXIT=$?
+
+# Generate HTML summary for Prow artifacts (no-op locally when ARTIFACT_DIR is unset)
+[ -n "${ARTIFACT_DIR}" ] && python3 "$(dirname "$0")/junit-to-html.py"
+
+exit $GINKGO_EXIT
