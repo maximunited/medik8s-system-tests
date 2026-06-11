@@ -6,11 +6,12 @@ by stripping them with regex before XML parsing.
 """
 
 import glob
+import html
 import os
 import re
 import sys
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def strip_system_err(content):
@@ -18,7 +19,12 @@ def strip_system_err(content):
 
 
 def parse_testcase(raw_name):
-    """Return (suite, test, tid) extracted from a Ginkgo testcase name."""
+    """Extract (suite, test, tid) from a Ginkgo verbose testcase name.
+
+    Strips the leading '[It]' prefix and trailing label block, then splits
+    the remainder into a suite group and a test description.  Returns
+    (None, None, None) for synthetic entries such as ReportAfterSuite.
+    """
     if 'ReportAfterSuite' in raw_name or 'ReportBeforeSuite' in raw_name:
         return None, None, None
 
@@ -35,13 +41,17 @@ def parse_testcase(raw_name):
 
 
 def status_cell(tc):
-    """Return (html_badge, failure_message)."""
+    """Return (html_badge, failure_message) for a testcase element.
+
+    Inspects child elements (<failure>, <error>, <skipped>) to determine
+    outcome.  The failure message is HTML-escaped and truncated to 400 chars.
+    Passing tests return an empty failure message.
+    """
     f = tc.find('failure')
     e = tc.find('error')
     if f is not None or e is not None:
         node = f if f is not None else e
-        msg = (node.text or '').strip()[:400]
-        msg = msg.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        msg = html.escape((node.text or '').strip()[:400])
         return '<span class="fail">✗ FAIL</span>', msg
     if tc.attrib.get('status') == 'skipped' or tc.find('skipped') is not None:
         return '<span class="skip">⊘ SKIP</span>', ''
@@ -96,6 +106,13 @@ TEMPLATE = """\
 
 
 def build_html(xml_files):
+    """Parse xml_files and return a complete HTML page as a string.
+
+    Each file is stripped of <system-err> blocks before parsing to handle
+    Ginkgo's unescaped '<' characters.  Files that cannot be parsed are
+    skipped with a warning.  The returned HTML is self-contained and requires
+    no external assets.
+    """
     rows = []
     total = passed = failed = skipped = 0
     total_dur = 0.0
@@ -139,9 +156,9 @@ def build_html(xml_files):
             rows.append(
                 f'<tr>'
                 f'<td>{n}</td>'
-                f'<td>{suite}</td>'
-                f'<td>{test}{fail_html}</td>'
-                f'<td class="tid">{tid}</td>'
+                f'<td>{html.escape(suite)}</td>'
+                f'<td>{html.escape(test)}{fail_html}</td>'
+                f'<td class="tid">{html.escape(tid)}</td>'
                 f'<td>{badge}</td>'
                 f'<td class="dur">{dur:.2f}s</td>'
                 f'</tr>'
@@ -149,8 +166,8 @@ def build_html(xml_files):
 
     body = '\n'.join(rows) if rows else '<tr><td colspan="6">No test cases found.</td></tr>'
     return TEMPLATE.format(
-        suite_name=', '.join(sorted(suite_names)) or 'Unknown',
-        generated=datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
+        suite_name=html.escape(', '.join(sorted(suite_names)) or 'Unknown'),
+        generated=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
         total=total,
         duration=f'{total_dur:.1f}',
         passed=passed,
@@ -161,6 +178,11 @@ def build_html(xml_files):
 
 
 def main():
+    """Entry point: locate JUnit XML files in $ARTIFACT_DIR and write test-summary.html.
+
+    Exits with code 0 if $ARTIFACT_DIR is unset or no XML files are found
+    so the caller's exit code is not affected.
+    """
     artifact_dir = os.environ.get('ARTIFACT_DIR', '')
     if not artifact_dir:
         print("ARTIFACT_DIR not set — skipping HTML report generation.", file=sys.stderr)
