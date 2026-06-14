@@ -4,7 +4,7 @@ GINKGO="${GINKGO:-ginkgo}"
 TEST_DIR="./tests"
 
 # In CI, write JUnit XML to ARTIFACT_DIR so Prow picks it up; fall back to /tmp/reports locally.
-export ECO_REPORTS_DUMP_DIR="${ARTIFACT_DIR:-/tmp/reports}"
+export ECO_REPORTS_DUMP_DIR="${ECO_REPORTS_DUMP_DIR:-${ARTIFACT_DIR:-/tmp/reports}}"
 
 # Check that ECO_TEST_FEATURES environment variable has been set
 if [[ -z "${ECO_TEST_FEATURES}" ]]; then
