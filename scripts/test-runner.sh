@@ -3,6 +3,9 @@
 GINKGO="${GINKGO:-ginkgo}"
 TEST_DIR="./tests"
 
+# In CI, write JUnit XML to ARTIFACT_DIR so Prow picks it up; fall back to /tmp/reports locally.
+export ECO_REPORTS_DUMP_DIR="${ARTIFACT_DIR:-/tmp/reports}"
+
 # Check that ECO_TEST_FEATURES environment variable has been set
 if [[ -z "${ECO_TEST_FEATURES}" ]]; then
     echo "ECO_TEST_FEATURES environment variable is undefined"
@@ -56,3 +59,13 @@ cmd+=" $@ $feature_dirs"   # add user args before feature dirs
 # Execute ginkgo command
 echo $cmd
 eval $cmd
+GINKGO_EXIT=$?
+
+# Copy JUnit XML to SHARED_DIR so post-test steps (e.g. Polarion reporter) can read them.
+if [[ -n "${SHARED_DIR}" ]]; then
+  for f in "${ECO_REPORTS_DUMP_DIR}"/*_junit.xml; do
+    [[ -e "$f" ]] && cp "$f" "${SHARED_DIR}/"
+  done
+fi
+
+exit $GINKGO_EXIT
