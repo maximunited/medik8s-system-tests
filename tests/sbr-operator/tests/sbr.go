@@ -161,6 +161,23 @@ func findActiveCSV(csvs []*olm.ClusterServiceVersionBuilder) *olm.ClusterService
 	return nil
 }
 
+// isNodeSchedulable returns true when a node is Ready and not cordoned.
+// NotReady and unschedulable nodes are excluded so that scheduling failures
+// are not misattributed to failures in the operator under test.
+func isNodeSchedulable(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+
+	for _, cond := range node.Status.Conditions {
+		if cond.Type == corev1.NodeReady {
+			return cond.Status == corev1.ConditionTrue
+		}
+	}
+
+	return false
+}
+
 func filterRunningPods(pods []*pod.Builder) []*pod.Builder {
 	var running []*pod.Builder
 
@@ -614,11 +631,11 @@ func snapshotDaemonSetNames() map[string]bool {
 	return names
 }
 
-func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
+func buildSBRUnstructured(kind, name string, spec map[string]interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": sbrparams.CRDGroup + "/" + sbrparams.CRDVersion,
-			"kind":       "StorageBasedRemediationConfig",
+			"kind":       kind,
 			"metadata": map[string]interface{}{
 				"name":      name,
 				"namespace": medik8sparams.OperatorNs,
@@ -626,6 +643,10 @@ func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructu
 			"spec": spec,
 		},
 	}
+}
+
+func buildSBRC(name string, spec map[string]interface{}) *unstructured.Unstructured {
+	return buildSBRUnstructured("StorageBasedRemediationConfig", name, spec)
 }
 
 var _ = Describe(

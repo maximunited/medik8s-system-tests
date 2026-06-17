@@ -79,6 +79,10 @@ const (
 
 	// CSVNamePattern is the substring used to match the SBR operator ClusterServiceVersion by name.
 	CSVNamePattern = "storage-based-remediation"
+
+	// SBRRemediationFinalizer is the finalizer the controller adds to every StorageBasedRemediation CR.
+	// Sourced from internal/controller/storagebasedremediation_controller.go.
+	SBRRemediationFinalizer = "medik8s.io/sbr-remediation-finalizer"
 )
 
 // WatchdogDebugImage is the container image for /dev/watchdog* discovery pods.
