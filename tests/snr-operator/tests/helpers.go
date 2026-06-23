@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,6 +14,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // buildSNRCR builds an unstructured SNR custom resource of the given kind.
@@ -62,18 +64,33 @@ func buildSNRWithAnnotations(
 	}
 }
 
-// deferDeleteCR registers cleanup for a CR, retrying deletion with Eventually.
+// deferDeleteCR registers cleanup for a CR, waiting until the object is fully gone.
 func deferDeleteCR(resource *unstructured.Unstructured) {
 	DeferCleanup(func() {
+		// Trigger deletion; ignore NotFound (already gone) and AlreadyExists-style no-ops.
+		deleteErr := APIClient.Delete(context.TODO(), resource)
+		if deleteErr != nil && !k8serrors.IsNotFound(deleteErr) {
+			GinkgoT().Logf("Warning: delete CR %q: %v", resource.GetName(), deleteErr)
+		}
+
+		// Wait until the object is actually gone — a finalizer can keep it in terminating
+		// state after Delete returns nil, leaving stale objects visible to subsequent tests.
 		Eventually(func() error {
-			deleteErr := APIClient.Delete(context.TODO(), resource)
-			if k8serrors.IsNotFound(deleteErr) {
+			getErr := APIClient.Get(context.TODO(),
+				client.ObjectKey{Name: resource.GetName(), Namespace: resource.GetNamespace()},
+				resource)
+			if k8serrors.IsNotFound(getErr) {
 				return nil
 			}
 
-			return deleteErr
+			if getErr != nil {
+				return getErr
+			}
+
+			return fmt.Errorf("CR %q still exists (DeletionTimestamp: %v)",
+				resource.GetName(), resource.GetDeletionTimestamp())
 		}, medik8sparams.DefaultTimeout, snrparams.DefaultPollInterval).Should(Succeed(),
-			"cleanup of test CR %q must succeed", resource.GetName())
+			"cleanup of test CR %q must complete", resource.GetName())
 	})
 }
 

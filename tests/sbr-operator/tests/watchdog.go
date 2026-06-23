@@ -144,10 +144,6 @@ var _ = Describe(
 
 				for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
 					for _, token := range strings.Fields(line) {
-						if token == "" {
-							continue
-						}
-
 						devices = append(devices, strings.TrimPrefix(token, "/proc/1/root"))
 					}
 				}

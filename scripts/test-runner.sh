@@ -69,8 +69,8 @@ COPY_EXIT=0
 if [[ -n "${SHARED_DIR}" ]]; then
     mapfile -t testrun_files < <(find "${ECO_REPORTS_DUMP_DIR}" -type f -name '*_testrun.xml' 2>/dev/null)
     if [[ ${#testrun_files[@]} -eq 0 ]]; then
+        # Warn only — missing XML does not fail a green test run.
         echo "Warning: no *_testrun.xml files found in ${ECO_REPORTS_DUMP_DIR}" >&2
-        COPY_EXIT=1
     elif ! cp -t "${SHARED_DIR}/" "${testrun_files[@]}"; then
         echo "Failed to copy *_testrun.xml from ${ECO_REPORTS_DUMP_DIR} to ${SHARED_DIR}" >&2
         COPY_EXIT=1

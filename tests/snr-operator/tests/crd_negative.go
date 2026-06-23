@@ -65,6 +65,10 @@ var _ = Describe(
 						continue
 					}
 
+					if ver.Schema == nil || ver.Schema.OpenAPIV3Schema == nil {
+						continue
+					}
+
 					props := ver.Schema.OpenAPIV3Schema.Properties["spec"].Properties
 					if safeTimeProp, exists := props["safeTimeToAssumeNodeRebootedSeconds"]; exists {
 						description = safeTimeProp.Description

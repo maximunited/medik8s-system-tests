@@ -461,23 +461,15 @@ var _ = Describe(
 				)
 				Expect(err).ToNot(HaveOccurred(), "FAR controller pods are not ready")
 
-				By("Listing all pods in operator namespace by deployment name prefix")
+				By("Listing FAR controller pods by label selector")
 
-				allPods, err := pod.List(APIClient, medik8sparams.OperatorNs, metav1.ListOptions{})
-				Expect(err).ToNot(HaveOccurred(), "Failed to list pods in operator namespace")
-
-				var farPods []*pod.Builder
-
-				for _, p := range allPods {
-					if strings.HasPrefix(p.Object.Name, farparams.OperatorDeploymentName) {
-						farPods = append(farPods, p)
-					}
-				}
+				farPods, err := pod.List(APIClient, medik8sparams.OperatorNs, metav1.ListOptions{
+					LabelSelector: farparams.OperatorControllerPodLabelSelector,
+				})
+				Expect(err).ToNot(HaveOccurred(), "Failed to list FAR controller pods")
 
 				runningPods := filterRunningPods(farPods)
-				Expect(runningPods).ToNot(BeEmpty(),
-					"No running FAR controller pods found matching name prefix %q",
-					farparams.OperatorDeploymentName)
+				Expect(runningPods).ToNot(BeEmpty(), "No running FAR controller pods found")
 
 				for _, p := range runningPods {
 					By(fmt.Sprintf("Verifying labels on pod %s", p.Object.Name))
